@@ -2,39 +2,51 @@ package com.example.litterboom.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.example.litterboom.R
 
-// To use a custom cursive font like in the wireframe, you would add the font file to `res/font`
-// and define it here. For simplicity, we are using the system's cursive font.
-// val CursiveFontFamily = FontFamily(Font(R.font.your_cursive_font))
+val LuloClean = FontFamily(
+    Font(R.font.lulo_clean, FontWeight.Bold)
+)
 
-val Typography = Typography(
+val Avenir = FontFamily(
+    Font(R.font.avenir_light, FontWeight.Normal)
+)
+
+val AppTypography = Typography(
+    // For large headings
+    displayLarge = TextStyle(
+        fontFamily = LuloClean,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+        letterSpacing = 0.sp
+    ),
+    // For smaller headings
+    headlineLarge = TextStyle(
+        fontFamily = LuloClean,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        letterSpacing = 0.sp
+    ),
+    // For all body text, paragraphs, and input field labels
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = Avenir,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp
     ),
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.Cursive,
-        fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
+    // For button text and other small, important text
+    labelLarge = TextStyle(
+        fontFamily = Avenir,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
         letterSpacing = 0.5.sp
     )
 )
