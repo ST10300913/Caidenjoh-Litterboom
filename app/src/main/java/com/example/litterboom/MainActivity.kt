@@ -44,6 +44,19 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
+import com.example.litterboom.data.AppDatabase
+import com.example.litterboom.data.User
+import com.example.litterboom.data.Event
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Divider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.saveable.rememberSaveable
+import android.widget.Toast
+import java.util.Date
+import java.util.Calendar
+import androidx.compose.material3.Button
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -60,32 +73,214 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppWithNavDrawer() { //main page
-
+fun AppWithNavDrawer() { //main screen
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var currentScreen by remember { mutableStateOf("Source to Sea") }
+
+    var loggedIn by rememberSaveable { mutableStateOf(false) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-
-            AppDrawerContent {
+            AppDrawerContent { selectedItem ->
                 scope.launch { drawerState.close() }
+                currentScreen = selectedItem
             }
         }
     ) {
-
-        LoginScreenWithSwipeableSheet(
-            onMenuClick = {
-                scope.launch { drawerState.open() }
+        //Show different content based on selected item
+        when (currentScreen) {
+            "Source to Sea" -> {
+                LoginScreenWithSwipeableSheet(
+                    loggedIn = loggedIn,
+                    onLoginChange = { loggedIn = it },
+                    onMenuClick = { scope.launch { drawerState.open() } }
+                )
             }
+            "Admin Panel" -> {
+                AdminControlPanelScreen(
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onItemClick = { currentScreen = it }
+                )
+            }
+            "Create Event" -> {
+                CreateEventScreen(
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onEventCreated = { event -> currentScreen = "Event List"
+                    }
+                )
+            }
+            "Event List" -> {
+                EventListScreen(
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onItemClick = { currentScreen = it }
+                )
+            }
+
+            else -> {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.LightGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = currentScreen, fontSize = 24.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminControlPanelScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf("User") }
+    var roleMenuExpanded by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("") }
+    var users by remember { mutableStateOf(listOf<User>()) }
+
+    LaunchedEffect(Unit) {
+        val db = AppDatabase.getDatabase(context)
+        users = db.userDao().getAllUsers()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu")
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Admin Panel", style = MaterialTheme.typography.headlineLarge)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("Username") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Role: ", style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.width(8.dp))
+            Box {
+                Button(onClick = { roleMenuExpanded = true }) {
+                    Text(selectedRole)
+                }
+                DropdownMenu(
+                    expanded = roleMenuExpanded,
+                    onDismissRequest = { roleMenuExpanded = false }
+                ) {
+                    listOf("User", "Admin").forEach { role ->
+                        DropdownMenuItem(
+                            text = { Text(role) },
+                            onClick = {
+                                selectedRole = role
+                                roleMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                scope.launch {
+                    if (username.isNotBlank() && password.isNotBlank()) {
+                        val db = AppDatabase.getDatabase(context)
+                        db.userDao().insertUser(
+                            User(
+                                username = username,
+                                password = password,
+                                role = selectedRole
+                            )
+                        )
+                        username = ""
+                        password = ""
+                        selectedRole = "User"
+                        successMessage = "User added successfully!"
+
+                        users = db.userDao().getAllUsers()
+                    } else {
+                        successMessage = "Please enter both username and password."
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            Text("Add User")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (successMessage.isNotEmpty()) {
+            Text(
+                text = successMessage,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text("Current Users:", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            items(users) { user ->
+                Text(
+                    text = "${user.id}: ${user.username} (${user.role})",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                Divider(color = Color.Gray.copy(alpha = 0.3f))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = { onItemClick("Create Event") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            Text("Create Event")
+        }
+
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreenWithSwipeableSheet(onMenuClick: () -> Unit) { //swipeable sheet for login page
+fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) -> Unit, onMenuClick: () -> Unit) { //swipeable sheet for login page
     val sheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
         skipHiddenState = true
@@ -104,9 +299,11 @@ fun LoginScreenWithSwipeableSheet(onMenuClick: () -> Unit) { //swipeable sheet f
         sheetContent = {
             LoginSheetContent(
                 isExpanded = isSheetFullyExpanded,
+                loggedIn = loggedIn,
                 onLoginClick = {
-                    scope.launch { sheetState.expand() }
-                }
+                    scope.launch { sheetState.expand() }},
+                onLoginSuccess = { onLoginChange(true) }
+
             )
         },
         topBar = { //top bar for app
@@ -152,10 +349,10 @@ fun LoginScreenWithSwipeableSheet(onMenuClick: () -> Unit) { //swipeable sheet f
 }
 
 @Composable
-fun AppDrawerContent(onItemClick: () -> Unit) { //hamburger menu drawer for app
+fun AppDrawerContent(onItemClick: (String) -> Unit) { //hamburger menu drawer for app
     val navItems = listOf(
         "Source to Sea", "Interception", "Education", "Innovation",
-        "Our Story", "The Team", "Events", "Contact"
+        "Our Story", "The Team", "Event List", "Contact", "Admin Panel"
     )
 
     ModalDrawerSheet(
@@ -171,10 +368,10 @@ fun AppDrawerContent(onItemClick: () -> Unit) { //hamburger menu drawer for app
                 onClick = {
                     if (item == "Source to Sea") {
                         // This is the main activity, so we just close the drawer.
-                        onItemClick()
+                        onItemClick(item)
                     } else {
                         // For other items, we still close the drawer but will add navigation later.
-                        onItemClick()
+                        onItemClick(item)
                         // Add navigation logic here to go to the correct screen
                     }
 
@@ -192,7 +389,16 @@ fun AppDrawerContent(onItemClick: () -> Unit) { //hamburger menu drawer for app
 }
 
 @Composable
-fun LoginSheetContent(isExpanded: Boolean, onLoginClick: () -> Unit) { //login sheet components
+fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -> Unit, onLoginSuccess: () -> Unit) {
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var rememberMe by remember { mutableStateOf(false) }
+    var loginMessage by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,9 +416,11 @@ fun LoginSheetContent(isExpanded: Boolean, onLoginClick: () -> Unit) { //login s
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (!isExpanded) { //if sheet is not expanded, show login button
+        val headerText = if (loggedIn) "Logged In" else "Login"
+
+        if (!isExpanded) {
             Text(
-                "Login",
+                headerText,
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.pointerInput(Unit) {
@@ -220,53 +428,300 @@ fun LoginSheetContent(isExpanded: Boolean, onLoginClick: () -> Unit) { //login s
                 }
             )
         } else {
-            var username by remember { mutableStateOf("") }
-            var password by remember { mutableStateOf("") }
-            var isPasswordVisible by remember { mutableStateOf(false) }
-            var rememberMe by remember { mutableStateOf(false) }
+            if (!loggedIn) {
+                Text(
+                    "Login",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Text("Login", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.height(24.dp))
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("Username") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                trailingIcon = {
-                    val image = if (isPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                        Icon(image, "Toggle password visibility")
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        val image =
+                            if (isPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                            Icon(image, "Toggle password visibility")
+                        }
+                    },
+                    textStyle = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(checked = rememberMe, onCheckedChange = { rememberMe = it })
+                    Text(
+                        "Remember Me",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+
+                if (!isExpanded) {
+                    Text(
+                        "Login",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.pointerInput(Unit) {
+                            detectTapGestures(onTap = { onLoginClick() })
+                        }
+                    )
+                } else {
+                    if (!loggedIn) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    if (username.isNotBlank() && password.isNotBlank()) {
+                                        val db = AppDatabase.getDatabase(context)
+                                        val user = db.userDao().getUser(username, password)
+                                        if (user != null) {
+                                            loginMessage = "Login successful!"
+                                            onLoginSuccess()
+                                        } else {
+                                            loginMessage = "Invalid username or password."
+                                        }
+                                    } else {
+                                        loginMessage = "Enter username and password."
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("LOGIN", style = MaterialTheme.typography.labelLarge)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
-                },
-                textStyle = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = rememberMe, onCheckedChange = { rememberMe = it })
-                Text("Remember Me", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+
+
+                    if (loginMessage.isNotEmpty()) {
+                        Text(
+                            text = loginMessage,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = { /* Login Logic */ },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("LOGIN", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+fun CreateEventScreen(onMenuClick: () -> Unit, onEventCreated: (Event) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var eventName by remember { mutableStateOf("") }
+    var eventDate by remember { mutableStateOf(java.util.Calendar.getInstance().time) }
+    var eventLocation by remember { mutableStateOf("") }
+
+    val datePickerDialog = android.app.DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            val calendar = java.util.Calendar.getInstance()
+            calendar.set(year, month, dayOfMonth)
+            eventDate = calendar.time
+        },
+        java.util.Calendar.getInstance().get(java.util.Calendar.YEAR),
+        java.util.Calendar.getInstance().get(java.util.Calendar.MONTH),
+        java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu")
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Creating an Event", style = MaterialTheme.typography.headlineLarge)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = eventName,
+            onValueChange = { eventName = it },
+            label = { Text("Event Name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = { datePickerDialog.show() }, modifier = Modifier.fillMaxWidth()) {
+            Text("Select Event Date: ${android.text.format.DateFormat.format("yyyy-MM-dd", eventDate)}")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = eventLocation,
+            onValueChange = { eventLocation = it },
+            label = { Text("Event Location") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                val db = AppDatabase.getDatabase(context)
+                scope.launch {
+                    if (eventName.isNotBlank() && eventLocation.isNotBlank()) {
+                        db.eventDao().insertEvent(
+                            Event(
+                                name = eventName,
+                                date = eventDate.time,
+                                location = eventLocation
+                            )
+                        )
+                        Toast.makeText(context, "Event created!", Toast.LENGTH_SHORT).show()
+                        eventName = ""
+                        eventLocation = ""
+                        onEventCreated(
+                            Event(name = eventName, date = eventDate.time, location = eventLocation)
+                        )
+                    } else {
+                        Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Create Event")
+        }
+    }
+}
+
+@Composable
+fun EventListScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Unit) {
+    val context = LocalContext.current
+    var events by remember { mutableStateOf(listOf<Event>()) }
+    val scope = rememberCoroutineScope()
+
+    var startDate by remember { mutableStateOf<Date?>(null) }
+    var endDate by remember { mutableStateOf<Date?>(null) }
+
+    val db = AppDatabase.getDatabase(context)
+
+    LaunchedEffect(Unit) {
+        events = db.eventDao().getAllEvents()
+    }
+
+    val startDatePicker = android.app.DatePickerDialog(
+        context,
+        { _, year, month, day ->
+            val cal = Calendar.getInstance()
+            cal.set(year, month, day)
+            startDate = cal.time
+            // Filter events after picking start date
+            scope.launch {
+                events = db.eventDao().getAllEvents().filter { event ->
+                    startDate?.let { event.date >= it.time } ?: true
+                }
+            }
+        },
+        Calendar.getInstance().get(Calendar.YEAR),
+        Calendar.getInstance().get(Calendar.MONTH),
+        Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+    )
+
+    val endDatePicker = android.app.DatePickerDialog(
+        context,
+        { _, year, month, day ->
+            val cal = Calendar.getInstance()
+            cal.set(year, month, day)
+            endDate = cal.time
+            // Filter events after picking end date
+            scope.launch {
+                events = db.eventDao().getAllEvents().filter { event ->
+                    endDate?.let { event.date <= it.time } ?: true
+                }
+            }
+        },
+        Calendar.getInstance().get(Calendar.YEAR),
+        Calendar.getInstance().get(Calendar.MONTH),
+        Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+    )
+
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu")
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Event List", style = MaterialTheme.typography.headlineLarge)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Button(onClick = { startDatePicker.show() }) {
+                Text(
+                    startDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() }
+                        ?: "Start Date"
+                )
+            }
+
+            Button(onClick = { endDatePicker.show() }) {
+                Text(
+                    endDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() }
+                        ?: "End Date"
+                )
+            }
+
+            Button(onClick = {
+                // Reset filters
+                startDate = null
+                endDate = null
+                scope.launch {
+                    events = db.eventDao().getAllEvents()
+                }
+            }) {
+                Text("Clear")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        LazyColumn {
+            items(events) { event ->
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(event.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "${android.text.format.DateFormat.format("yyyy-MM-dd", Date(event.date))} - ${event.location}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Divider(color = Color.Gray.copy(alpha = 0.3f))
+                }
+            }
         }
     }
 }
