@@ -1,4 +1,4 @@
-package com.example.litterboom;
+package com.example.litterboom
 
 public class InterceptionActivity {
 }
