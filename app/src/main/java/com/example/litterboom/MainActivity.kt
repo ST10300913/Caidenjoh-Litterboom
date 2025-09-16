@@ -497,6 +497,8 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                         if (user != null) {
                                             loginMessage = "Login successful!"
                                             onLoginSuccess()
+                                            val intent = Intent(context, WasteWorkerActivity::class.java)
+                                            context.startActivity(intent)
                                         } else {
                                             loginMessage = "Invalid username or password."
                                         }
