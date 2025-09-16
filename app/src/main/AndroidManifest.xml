@@ -24,10 +24,23 @@
         </activity>
 
         <activity
-            android:name=".WasteWorkerActivity"
+            android:name=".ui.WasteWorkerActivity"
             android:exported="false"
             android:label="User Dashboard" >
         </activity>
+
+        <activity
+            android:name=".ui.BagNumberActivity"
+            android:exported="false"
+            android:label="Select Bag Number" >
+        </activity>
+
+        <activity
+            android:name=".ui.MainLoggingMenuActivity"
+            android:exported="false"
+            android:label="Logging Menu" >
+        </activity>
+
     </application>
 
 </manifest>
