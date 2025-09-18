@@ -1,9 +1,9 @@
 package com.example.litterboom.data
 
+import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import android.content.Context
 
 @Database(entities = [User::class, Event::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
@@ -24,7 +24,6 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     .fallbackToDestructiveMigration()
                     .build()
-
                 INSTANCE = instance
                 instance
             }

@@ -57,6 +57,7 @@ import android.widget.Toast
 import java.util.Date
 import java.util.Calendar
 import androidx.compose.material3.Button
+import com.example.litterboom.ui.WasteWorkerActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -389,7 +390,7 @@ fun AppDrawerContent(onItemClick: (String) -> Unit) { //hamburger menu drawer fo
 }
 
 @Composable
-fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -> Unit, onLoginSuccess: () -> Unit) {
+fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -> Unit, onLoginSuccess: () -> Unit) { //login sheet content
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -487,7 +488,7 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                         }
                     )
                 } else {
-                    if (!loggedIn) {
+                    if (!loggedIn) { //login button
                         Button(
                             onClick = {
                                 scope.launch {
@@ -497,6 +498,8 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                         if (user != null) {
                                             loginMessage = "Login successful!"
                                             onLoginSuccess()
+                                            val intent = Intent(context, WasteWorkerActivity::class.java) //change to waste worker activity
+                                            context.startActivity(intent)
                                         } else {
                                             loginMessage = "Invalid username or password."
                                         }
@@ -536,19 +539,19 @@ fun CreateEventScreen(onMenuClick: () -> Unit, onEventCreated: (Event) -> Unit) 
     val scope = rememberCoroutineScope()
 
     var eventName by remember { mutableStateOf("") }
-    var eventDate by remember { mutableStateOf(java.util.Calendar.getInstance().time) }
+    var eventDate by remember { mutableStateOf(Calendar.getInstance().time) }
     var eventLocation by remember { mutableStateOf("") }
 
     val datePickerDialog = android.app.DatePickerDialog(
         context,
         { _, year, month, dayOfMonth ->
-            val calendar = java.util.Calendar.getInstance()
+            val calendar = Calendar.getInstance()
             calendar.set(year, month, dayOfMonth)
             eventDate = calendar.time
         },
-        java.util.Calendar.getInstance().get(java.util.Calendar.YEAR),
-        java.util.Calendar.getInstance().get(java.util.Calendar.MONTH),
-        java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)
+        Calendar.getInstance().get(Calendar.YEAR),
+        Calendar.getInstance().get(Calendar.MONTH),
+        Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
     )
 
     Column(
