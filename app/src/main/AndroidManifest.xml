@@ -24,7 +24,7 @@
         </activity>
 
         <activity
-            android:name=".ui.WasteWorkerActivity"
+            android:name=".WasteWorkerActivity"
             android:exported="false"
             android:label="User Dashboard" >
         </activity>
@@ -38,8 +38,9 @@
         <activity
             android:name=".ui.MainLoggingMenuActivity"
             android:exported="false"
-            android:label="Logging Menu" >
+            android:label="Logging Main Menu" >
         </activity>
+
 
     </application>
 

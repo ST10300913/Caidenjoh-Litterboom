@@ -57,7 +57,6 @@ import android.widget.Toast
 import java.util.Date
 import java.util.Calendar
 import androidx.compose.material3.Button
-import com.example.litterboom.ui.WasteWorkerActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
