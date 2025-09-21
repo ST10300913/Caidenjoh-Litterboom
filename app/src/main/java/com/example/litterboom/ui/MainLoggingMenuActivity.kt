@@ -169,13 +169,6 @@ fun MainCategoryGrid(onCategorySelected: (String) -> Unit) {
             contentDescription = "Litterboom Logo",
             modifier = Modifier.height(60.dp).padding(vertical = 8.dp)
         )
-        Text("Welcome back, Username!", style = MaterialTheme.typography.bodyLarge)
-        Text(
-            "Not you? Logout",
-            style = MaterialTheme.typography.bodyLarge,
-            color = Color.Red,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
         OutlinedTextField(
             value = "",
             onValueChange = {},
