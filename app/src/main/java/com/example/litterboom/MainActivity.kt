@@ -121,6 +121,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        AppDatabase.getDatabase(this)
+
         setContent {
             LitterboomTheme {
                 AppWithNavDrawer()
@@ -984,6 +986,7 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                             context.startActivity(intent)
                                         } else {
                                             loginMessage = "Invalid username or password."
+
                                         }
                                     } else {
                                         loginMessage = "Enter username and password."
@@ -1002,9 +1005,9 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                     }
 
 
-                    if (loggedIn) {
+                    if (loginMessage.isNotEmpty()) {
                         Text(
-                            text = "Logged in as ${CurrentUserManager.currentUser?.username} (${CurrentUserManager.currentUser?.role})",
+                            text = loginMessage,
                             color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodyMedium
                         )
