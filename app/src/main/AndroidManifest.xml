@@ -47,6 +47,11 @@
             android:label="Log Item Details" >
         </activity>
 
+        <activity
+            android:name=".ui.EventSelectionActivity"
+            android:exported="false"
+            android:label="Select Event" />
+
     </application>
 
 </manifest>

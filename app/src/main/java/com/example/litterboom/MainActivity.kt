@@ -37,13 +37,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.BottomSheetScaffold
@@ -110,6 +108,7 @@ import com.example.litterboom.data.SubCategoryField
 import com.example.litterboom.data.User
 import com.example.litterboom.data.WasteCategory
 import com.example.litterboom.data.WasteSubCategory
+import com.example.litterboom.ui.EventSelectionActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -265,7 +264,7 @@ fun AddUserScreen(onBackClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        Icons.Default.ArrowBack,
+                        Icons.AutoMirrored.Filled.ArrowBack,
                         "Back",
                         tint = Color.White
                     )
@@ -956,7 +955,7 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                         if (user != null) {
                                             loginMessage = "Login successful!"
                                             onLoginSuccess()
-                                            val intent = Intent(context, WasteWorkerActivity::class.java) //change to waste worker activity
+                                            val intent = Intent(context, EventSelectionActivity::class.java) //change to waste worker activity
                                             context.startActivity(intent)
                                         } else {
                                             loginMessage = "Invalid username or password."
@@ -1069,7 +1068,7 @@ fun EventListScreen(onBackClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("Event List", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
