@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Database(entities = [User::class, Event::class, WasteCategory::class, WasteSubCategory::class, LoggingField::class,      // Add this
     SubCategoryField::class], version = 6, exportSchema = false)
@@ -25,9 +29,33 @@ abstract class AppDatabase : RoomDatabase() {
                     "litterboom_db"
                 )
                     .fallbackToDestructiveMigration()
+                    .addCallback(DatabaseCallback(CoroutineScope(Dispatchers.IO)))
                     .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+    }
+
+    private class DatabaseCallback(private val scope: CoroutineScope) : RoomDatabase.Callback() {
+        override fun onCreate(db: SupportSQLiteDatabase) {
+            super.onCreate(db)
+            INSTANCE?.let { database ->
+                scope.launch {
+                    seedAdminUser(database.userDao())
+                }
+            }
+        }
+
+        private suspend fun seedAdminUser(userDao: UserDao) {
+            val existingAdmin = userDao.getUser("admin", "admin")
+            if (existingAdmin == null) {
+                val adminUser = User(
+                    username = "admin",
+                    password = "admin",
+                    role = "Admin"
+                )
+                userDao.insertUser(adminUser)
             }
         }
     }

@@ -111,6 +111,7 @@ import com.example.litterboom.data.User
 import com.example.litterboom.data.WasteCategory
 import com.example.litterboom.data.WasteSubCategory
 import com.example.litterboom.ui.theme.LitterboomTheme
+import com.example.litterboom.data.CurrentUserManager
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
@@ -135,20 +136,46 @@ fun AppWithNavDrawer() {
     val scope = rememberCoroutineScope()
     var currentScreen by remember { mutableStateOf("Source to Sea") }
     var loggedIn by rememberSaveable { mutableStateOf(false) }
+    val isAdmin = CurrentUserManager.isAdmin()
+    val navItems = remember(loggedIn, isAdmin) {
+        listOf("Source to Sea", "Interception", "Education", "Innovation", "Our Story", "The Team", "Contact").plus(
+            if (loggedIn && isAdmin) listOf("Admin Panel") else emptyList()
+        ).plus(if (loggedIn) listOf("Logout") else emptyList())
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            AppDrawerContent { selectedItem ->
-                scope.launch { drawerState.close() }
-                currentScreen = selectedItem
-            }
+            AppDrawerContent(
+                navItems = navItems,
+                isAdmin = isAdmin,
+                onItemClick = { selectedItem ->
+                    scope.launch { drawerState.close() }
+                    when (selectedItem) {
+                        "Logout" -> {
+                            CurrentUserManager.logout()
+                            loggedIn = false
+                            currentScreen = "Source to Sea"
+                        }
+                        "Admin Panel" -> currentScreen = "Admin Panel"
+                        else -> currentScreen = selectedItem
+                    }
+                }
+            )
         }
     ) {
         Crossfade(targetState = currentScreen, label = "ScreenCrossfade") { screen ->
             when (screen) {
                 "Source to Sea" -> LoginScreenWithSwipeableSheet(loggedIn, { loggedIn = it }, { scope.launch { drawerState.open() } })
-                "Admin Panel" -> AdminPanelScreen({ scope.launch { drawerState.open() } }, { newScreen -> currentScreen = newScreen })
+                "Admin Panel" -> {
+                    if (isAdmin) {
+                        AdminPanelScreen({ scope.launch { drawerState.open() } }, { newScreen -> currentScreen = newScreen })
+                    } else {
+                        //Redirect non-admins
+                        currentScreen = "Source to Sea"
+                        Toast.makeText(LocalContext.current, "Admin access required", Toast.LENGTH_SHORT).show()
+                    }
+                }
                 "Add User" -> AddUserScreen(onBackClick = { currentScreen = "Admin Panel" })
                 "Create Event" -> CreateEventScreen({ currentScreen = "Event List" }, { currentScreen = "Admin Panel" })
                 "Event List" -> EventListScreen(onBackClick = { currentScreen = "Admin Panel" })
@@ -167,6 +194,7 @@ fun AppWithNavDrawer() {
         }
     }
 }
+
 
 @Composable
 fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
@@ -808,35 +836,31 @@ fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) ->
 }
 
 @Composable
-fun AppDrawerContent(onItemClick: (String) -> Unit) { //hamburger menu drawer for app
-    val navItems = listOf(
-        "Source to Sea", "Interception", "Education", "Innovation",
-        "Our Story", "The Team", "Contact", "Admin Panel"
-    )
-
+fun AppDrawerContent(
+    navItems: List<String>,
+    isAdmin: Boolean,
+    onItemClick: (String) -> Unit
+) {
     ModalDrawerSheet(
         modifier = Modifier.width(280.dp),
         drawerContainerColor = MaterialTheme.colorScheme.primary
     ) {
         Spacer(Modifier.height(16.dp))
-        navItems.forEach { item -> //loop through nav items
+        if (CurrentUserManager.currentUser != null) {
+            Text(
+                text = "Logged in as ${CurrentUserManager.currentUser?.role}",
+                color = Color.White,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+        navItems.forEach { item ->
             val isSelected = item == "Source to Sea"
             NavigationDrawerItem(
                 label = { Text(item, style = MaterialTheme.typography.bodyLarge) },
                 selected = isSelected,
-                onClick = {
-                    if (item == "Source to Sea") {
-                        // This is the main activity, so we just close the drawer.
-                        onItemClick(item)
-                    } else {
-                        // For other items, we still close the drawer but will add navigation later.
-                        onItemClick(item)
-                        // Add navigation logic here to go to the correct screen
-                    }
-
-                },
+                onClick = { onItemClick(item) },
                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                colors = NavigationDrawerItemDefaults.colors( //styling for nav items
+                colors = NavigationDrawerItemDefaults.colors(
                     selectedTextColor = Color.White,
                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
                     unselectedTextColor = Color.White,
@@ -954,7 +978,8 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                         val db = AppDatabase.getDatabase(context)
                                         val user = db.userDao().getUser(username, password)
                                         if (user != null) {
-                                            loginMessage = "Login successful!"
+                                            loginMessage = "Login successful as ${user.role}!"
+                                            CurrentUserManager.login(user)
                                             onLoginSuccess()
                                             val intent = Intent(context, WasteWorkerActivity::class.java) //change to waste worker activity
                                             context.startActivity(intent)
@@ -978,9 +1003,9 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                     }
 
 
-                    if (loginMessage.isNotEmpty()) {
+                    if (loggedIn) {
                         Text(
-                            text = loginMessage,
+                            text = "Logged in as ${CurrentUserManager.currentUser?.username} (${CurrentUserManager.currentUser?.role})",
                             color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodyMedium
                         )
