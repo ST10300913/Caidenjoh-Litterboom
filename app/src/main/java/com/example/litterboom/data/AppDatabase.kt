@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(entities = [User::class, Event::class, WasteCategory::class, WasteSubCategory::class, LoggingField::class,      // Add this
-    SubCategoryField::class], version = 6, exportSchema = false)
+    SubCategoryField::class], version = 8, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun userDao(): UserDao
@@ -38,8 +38,8 @@ abstract class AppDatabase : RoomDatabase() {
     }
 
     private class DatabaseCallback(private val scope: CoroutineScope) : RoomDatabase.Callback() {
-        override fun onCreate(db: SupportSQLiteDatabase) {
-            super.onCreate(db)
+        override fun onOpen(db: SupportSQLiteDatabase) {
+            super.onOpen(db)
             INSTANCE?.let { database ->
                 scope.launch {
                     seedAdminUser(database.userDao())
