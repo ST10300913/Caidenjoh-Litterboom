@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,9 +37,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.BottomSheetScaffold
@@ -100,7 +105,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.example.litterboom.data.AppDatabase
 import com.example.litterboom.data.Event
+import com.example.litterboom.data.LoggingField
+import com.example.litterboom.data.SubCategoryField
 import com.example.litterboom.data.User
+import com.example.litterboom.data.WasteCategory
+import com.example.litterboom.data.WasteSubCategory
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -121,7 +130,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppWithNavDrawer() { //hamburger menu navigation
+fun AppWithNavDrawer() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var currentScreen by remember { mutableStateOf("Source to Sea") }
@@ -138,31 +147,20 @@ fun AppWithNavDrawer() { //hamburger menu navigation
     ) {
         Crossfade(targetState = currentScreen, label = "ScreenCrossfade") { screen ->
             when (screen) {
-                "Source to Sea" -> LoginScreenWithSwipeableSheet(
-                    loggedIn = loggedIn,
-                    onLoginChange = { loggedIn = it },
-                    onMenuClick = { scope.launch { drawerState.open() } }
-                )
-                "Admin Panel" -> AdminPanelScreen(
-                    onMenuClick = { scope.launch { drawerState.open() } },
-                    navigateTo = { newScreen -> currentScreen = newScreen }
-                )
-                "Add User" -> AddUserScreen(
-                    onBackClick = { currentScreen = "Admin Panel" }
-                )
-                "Create Event" -> CreateEventScreen(
-                    onEventCreated = { currentScreen = "Event List" },
-                    onBackClick = { currentScreen = "Admin Panel" }
-                )
-                "Event List" -> EventListScreen(
-                    onBackClick = { currentScreen = "Admin Panel" }
-                )
+                "Source to Sea" -> LoginScreenWithSwipeableSheet(loggedIn, { loggedIn = it }, { scope.launch { drawerState.open() } })
+                "Admin Panel" -> AdminPanelScreen({ scope.launch { drawerState.open() } }, { newScreen -> currentScreen = newScreen })
+                "Add User" -> AddUserScreen(onBackClick = { currentScreen = "Admin Panel" })
+                "Create Event" -> CreateEventScreen({ currentScreen = "Event List" }, { currentScreen = "Admin Panel" })
+                "Event List" -> EventListScreen(onBackClick = { currentScreen = "Admin Panel" })
+                "Manage Categories" -> ManageCategoriesScreen { currentScreen = "Admin Panel" }
+                "Manage Fields" -> ManageFieldsScreen { currentScreen = "Admin Panel" }
                 else -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(Color.LightGray),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = screen, fontSize = 24.sp)
+                    Box(modifier = Modifier.fillMaxSize().background(Color.LightGray), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = screen, fontSize = 24.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { currentScreen = "Source to Sea" }) { Text("Go Back") }
+                        }
                     }
                 }
             }
@@ -171,177 +169,40 @@ fun AppWithNavDrawer() { //hamburger menu navigation
 }
 
 @Composable
-fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) { //Central Menu Screen with icons for admin functionalities
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.secondary,
-                        MaterialTheme.colorScheme.primary
-                    )
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onMenuClick) {
-                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
-                }
+fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, "Menu", tint = Color.White) }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("Admin Panel", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
             AdminMenu(
                 onAddUserClick = { navigateTo("Add User") },
                 onCreateEventClick = { navigateTo("Create Event") },
-                onEventListClick = { navigateTo("Event List") }
+                onEventListClick = { navigateTo("Event List") },
+                onManageCategoriesClick = { navigateTo("Manage Categories") },
+                onManageFieldsClick = { navigateTo("Manage Fields") }
             )
         }
     }
 }
 
 @Composable
-fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit) { //Menu with icons
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            AdminIconButton(text = "Add User", icon = Icons.Default.PersonAdd, onClick = onAddUserClick)
-            AdminIconButton(text = "Create Event", icon = Icons.Default.Event, onClick = onCreateEventClick)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        AdminIconButton(text = "Event List", icon = Icons.AutoMirrored.Filled.ViewList, onClick = onEventListClick)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddUserScreen(onBackClick: () -> Unit) { //Screen for adding users
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("User") }
-    var roleMenuExpanded by remember { mutableStateOf(false) }
-    var successMessage by remember { mutableStateOf("") }
-    var users by remember { mutableStateOf(listOf<User>()) }
-
-    fun refreshUsers() {
-        scope.launch {
-            users = AppDatabase.getDatabase(context).userDao().getAllUsers()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        refreshUsers()
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.secondary,
-                        MaterialTheme.colorScheme.primary
-                    )
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Add User", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                AdminIconButton("Add User", Icons.Default.PersonAdd, onAddUserClick)
+                AdminIconButton("Create Event", Icons.Default.Event, onCreateEventClick)
             }
-            Spacer(modifier = Modifier.height(24.dp))
-
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("Username") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
-            )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                AdminIconButton("Event List", Icons.AutoMirrored.Filled.ViewList, onEventListClick)
+                AdminIconButton("Manage Categories", Icons.Default.Category, onManageCategoriesClick)
+            }
             Spacer(modifier = Modifier.height(16.dp))
-
-            ExposedDropdownMenuBox(expanded = roleMenuExpanded, onExpandedChange = { roleMenuExpanded = !roleMenuExpanded }) {
-                OutlinedTextField(
-                    value = selectedRole,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Role") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = roleMenuExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
-                )
-                ExposedDropdownMenu(expanded = roleMenuExpanded, onDismissRequest = { roleMenuExpanded = false }) {
-                    DropdownMenuItem(text = { Text("User") }, onClick = { selectedRole = "User"; roleMenuExpanded = false })
-                    DropdownMenuItem(text = { Text("Admin") }, onClick = { selectedRole = "Admin"; roleMenuExpanded = false })
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    scope.launch {
-                        if (username.isNotBlank() && password.isNotBlank()) {
-                            AppDatabase.getDatabase(context).userDao().insertUser(User(username = username, password = password, role = selectedRole))
-                            username = ""
-                            password = ""
-                            successMessage = "User added successfully!"
-                            refreshUsers()
-                        } else {
-                            successMessage = "Please fill all fields."
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Text("Add User", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            }
-            if (successMessage.isNotEmpty()) {
-                Text(text = successMessage, color = Color.White, modifier = Modifier.padding(top = 8.dp))
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Current Users:", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-            Spacer(modifier = Modifier.height(8.dp))
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(users) { user ->
-                    Text(text = "${user.id}: ${user.username} (${user.role})", style = MaterialTheme.typography.bodyLarge, color = Color.White, modifier = Modifier.padding(vertical = 4.dp))
-                    Divider(color = Color.White.copy(alpha = 0.3f))
-                }
-            }
+            AdminIconButton("Manage Fields", Icons.Default.Settings, onManageFieldsClick)
         }
     }
 }
@@ -369,6 +230,368 @@ fun AdminIconButton(text: String, icon: androidx.compose.ui.graphics.vector.Imag
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddUserScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf("User") }
+    var roleMenuExpanded by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("") }
+    var users by remember { mutableStateOf(listOf<User>()) }
+
+    fun refreshUsers() {
+        scope.launch { users = AppDatabase.getDatabase(context).userDao().getAllUsers() }
+    }
+
+    LaunchedEffect(Unit) { refreshUsers() }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.secondary,
+                    MaterialTheme.colorScheme.primary
+                )
+            )
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        "Back",
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    "Add User",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = Color.White.copy(alpha = 0.9f)
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = Color.White.copy(alpha = 0.9f)
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            ExposedDropdownMenuBox(
+                expanded = roleMenuExpanded,
+                onExpandedChange = { roleMenuExpanded = !roleMenuExpanded }) {
+                OutlinedTextField(
+                    value = selectedRole,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Role") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = roleMenuExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        containerColor = Color.White.copy(alpha = 0.9f)
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = roleMenuExpanded,
+                    onDismissRequest = { roleMenuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("User") },
+                        onClick = { selectedRole = "User"; roleMenuExpanded = false })
+                    DropdownMenuItem(
+                        text = { Text("Admin") },
+                        onClick = { selectedRole = "Admin"; roleMenuExpanded = false })
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = {
+                    scope.launch {
+                        if (username.isNotBlank() && password.isNotBlank()) {
+                            AppDatabase.getDatabase(context).userDao().insertUser(
+                                User(
+                                    username = username,
+                                    password = password,
+                                    role = selectedRole
+                                )
+                            )
+                            username = ""
+                            password = ""
+                            successMessage = "User added successfully!"
+                            refreshUsers()
+                        } else {
+                            successMessage = "Please fill all fields."
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Text(
+                    "Add User",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            if (successMessage.isNotEmpty()) {
+                Text(
+                    text = successMessage,
+                    color = Color.White,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                "Current Users:",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(users) { user ->
+                    Text(
+                        text = "${user.id}: ${user.username} (${user.role})",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Divider(color = Color.White.copy(alpha = 0.3f))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageCategoriesScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var categories by remember { mutableStateOf<List<WasteCategory>>(emptyList()) }
+    var newCategoryName by remember { mutableStateOf("") }
+    var newSubCategoryName by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<WasteCategory?>(null) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+
+    fun refreshCategories() {
+        scope.launch {
+            categories = AppDatabase.getDatabase(context).wasteDao().getAllCategories()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshCategories()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.primary
+                    )
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Manage Categories", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Add new Main Category
+            Text("Add New Main Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            OutlinedTextField(
+                value = newCategoryName,
+                onValueChange = { newCategoryName = it },
+                label = { Text("Category Name") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (newCategoryName.isNotBlank()) {
+                        AppDatabase.getDatabase(context).wasteDao().insertCategory(WasteCategory(name = newCategoryName))
+                        newCategoryName = ""
+                        refreshCategories()
+                        Toast.makeText(context, "Category Added", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Add Category")
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
+
+            // Add new Sub-Category
+            Text("Add New Sub-Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = !categoryMenuExpanded }) {
+                OutlinedTextField(
+                    value = selectedCategory?.name ?: "Select Category",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+                )
+                ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(text = { Text(category.name) }, onClick = { selectedCategory = category; categoryMenuExpanded = false })
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = newSubCategoryName,
+                onValueChange = { newSubCategoryName = it },
+                label = { Text("Sub-Category Name") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (newSubCategoryName.isNotBlank() && selectedCategory != null) {
+                        AppDatabase.getDatabase(context).wasteDao().insertSubCategory(WasteSubCategory(name = newSubCategoryName, categoryId = selectedCategory!!.id))
+                        newSubCategoryName = ""
+                        Toast.makeText(context, "Sub-Category Added", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Add Sub-Category")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageFieldsScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // State for creating new fields
+    var newFieldName by remember { mutableStateOf("") }
+
+    // State for assigning fields
+    var allSubCategories by remember { mutableStateOf<List<WasteSubCategory>>(emptyList()) }
+    var allFields by remember { mutableStateOf<List<LoggingField>>(emptyList()) }
+    var selectedSubCategory by remember { mutableStateOf<WasteSubCategory?>(null) }
+    var selectedField by remember { mutableStateOf<LoggingField?>(null) }
+    var subCategoryMenuExpanded by remember { mutableStateOf(false) }
+    var fieldMenuExpanded by remember { mutableStateOf(false) }
+
+    fun refreshData() {
+        scope.launch {
+            val db = AppDatabase.getDatabase(context)
+
+            val categories = db.wasteDao().getAllCategories()
+            allSubCategories = categories.flatMap { db.wasteDao().getSubCategoriesForCategory(it.id) }
+            allFields = db.wasteDao().getAllLoggingFields()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshData()
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Manage Logging Fields", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Section to create a new field type
+            Text("Create New Field Type", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            OutlinedTextField(value = newFieldName, onValueChange = { newFieldName = it }, label = { Text("Field Name (e.g., Colour)") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (newFieldName.isNotBlank()) {
+                        AppDatabase.getDatabase(context).wasteDao().insertLoggingField(LoggingField(fieldName = newFieldName))
+                        newFieldName = ""
+                        refreshData()
+                        Toast.makeText(context, "Field Created", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Create Field")
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
+
+            // Section to assign a field to a sub-category
+            Text("Assign Field to Sub-Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
+
+            // Sub-category dropdown
+            ExposedDropdownMenuBox(expanded = subCategoryMenuExpanded, onExpandedChange = { subCategoryMenuExpanded = !subCategoryMenuExpanded }) {
+                OutlinedTextField(value = selectedSubCategory?.name ?: "Select Sub-Category", onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subCategoryMenuExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+                ExposedDropdownMenu(expanded = subCategoryMenuExpanded, onDismissRequest = { subCategoryMenuExpanded = false }) {
+                    allSubCategories.forEach { subCategory ->
+                        DropdownMenuItem(text = { Text(subCategory.name) }, onClick = { selectedSubCategory = subCategory; subCategoryMenuExpanded = false })
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Field dropdown
+            ExposedDropdownMenuBox(expanded = fieldMenuExpanded, onExpandedChange = { fieldMenuExpanded = !fieldMenuExpanded }) {
+                OutlinedTextField(value = selectedField?.fieldName ?: "Select Field", onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fieldMenuExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+                ExposedDropdownMenu(expanded = fieldMenuExpanded, onDismissRequest = { fieldMenuExpanded = false }) {
+                    allFields.forEach { field ->
+                        DropdownMenuItem(text = { Text(field.fieldName) }, onClick = { selectedField = field; fieldMenuExpanded = false })
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (selectedSubCategory != null && selectedField != null) {
+                        AppDatabase.getDatabase(context).wasteDao().assignFieldToSubCategory(SubCategoryField(subCategoryId = selectedSubCategory!!.id, fieldId = selectedField!!.id))
+                        Toast.makeText(context, "Field Assigned", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Assign Field")
+            }
+        }
+    }
+}
 /*@Composable
 fun AdminControlPanelScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Unit) {
     val context = LocalContext.current
@@ -770,7 +993,7 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) { //event creation screen
+fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var eventName by remember { mutableStateOf("") }
@@ -778,32 +1001,22 @@ fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) 
     var eventLocation by remember { mutableStateOf("") }
     val calendar = Calendar.getInstance()
     calendar.time = eventDate
-
     val datePickerDialog = android.app.DatePickerDialog(context, { _, year, month, dayOfMonth ->
         calendar.set(year, month, dayOfMonth)
         eventDate = calendar.time
     }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("Create an Event", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
             Spacer(modifier = Modifier.height(32.dp))
-
             OutlinedTextField(value = eventName, onValueChange = { eventName = it }, label = { Text("Event Name") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(value = eventLocation, onValueChange = { eventLocation = it }, label = { Text("Event Location") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
             Spacer(modifier = Modifier.height(16.dp))
-
             Button(onClick = { datePickerDialog.show() }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Text("Date: ${android.text.format.DateFormat.format("yyyy-MM-dd", eventDate)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
@@ -829,18 +1042,15 @@ fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) 
 }
 
 @Composable
-fun EventListScreen(onBackClick: () -> Unit) { //event list screen
+fun EventListScreen(onBackClick: () -> Unit) {
+
     val context = LocalContext.current
     var events by remember { mutableStateOf(listOf<Event>()) }
     val scope = rememberCoroutineScope()
     var startDate by remember { mutableStateOf<Date?>(null) }
     var endDate by remember { mutableStateOf<Date?>(null) }
     val db = AppDatabase.getDatabase(context)
-
-    LaunchedEffect(Unit) {
-        events = db.eventDao().getAllEvents()
-    }
-
+    LaunchedEffect(Unit) { events = db.eventDao().getAllEvents() }
     fun showDatePicker(isStartDate: Boolean) {
         val calendar = Calendar.getInstance()
         android.app.DatePickerDialog(context, { _, year, month, day ->
@@ -856,52 +1066,26 @@ fun EventListScreen(onBackClick: () -> Unit) { //event list screen
             }
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
     }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.secondary,
-                        MaterialTheme.colorScheme.primary
-                    )
-                )
-            )
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
+                IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("Event List", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
             Spacer(modifier = Modifier.height(16.dp))
-
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { showDatePicker(true) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
+                Button(onClick = { showDatePicker(true) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Text(startDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() } ?: "Start Date", color = MaterialTheme.colorScheme.primary)
                 }
-                Button(
-                    onClick = { showDatePicker(false) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
+                Button(onClick = { showDatePicker(false) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Text(endDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() } ?: "End Date", color = MaterialTheme.colorScheme.primary)
                 }
-                Button(
-                    onClick = {
-                        startDate = null
-                        endDate = null
-                        scope.launch { events = db.eventDao().getAllEvents() }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
+                Button(onClick = {
+                    startDate = null
+                    endDate = null
+                    scope.launch { events = db.eventDao().getAllEvents() }
+                }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Text("Clear", color = MaterialTheme.colorScheme.primary)
                 }
             }

@@ -41,6 +41,11 @@
             android:label="Logging Main Menu" >
         </activity>
 
+        <activity
+            android:name=".ui.FieldLoggingActivity"
+            android:exported="false"
+            android:label="Log Item Details" >
+        </activity>
 
     </application>
 
