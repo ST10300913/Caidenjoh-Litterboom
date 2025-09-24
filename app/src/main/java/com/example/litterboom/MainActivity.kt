@@ -136,10 +136,11 @@ fun AppWithNavDrawer() {
     var currentScreen by remember { mutableStateOf("Source to Sea") }
     var loggedIn by rememberSaveable { mutableStateOf(false) }
     val isAdmin = CurrentUserManager.isAdmin()
+    val context = LocalContext.current
     val navItems = remember(loggedIn, isAdmin) {
         listOf("Source to Sea", "Interception", "Education", "Innovation", "Our Story", "The Team", "Contact").plus(
             if (loggedIn && isAdmin) listOf("Admin Panel") else emptyList()
-        ).plus(if (loggedIn) listOf("Logout") else emptyList())
+        ).plus(if (loggedIn) listOf("Event Selection", "Logout") else emptyList())
     }
 
     ModalNavigationDrawer(
@@ -157,6 +158,14 @@ fun AppWithNavDrawer() {
                             currentScreen = "Source to Sea"
                         }
                         "Admin Panel" -> currentScreen = "Admin Panel"
+                        "Event Selection" -> {
+                            if (loggedIn) {
+                                val intent = Intent(context, EventSelectionActivity::class.java)
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(context, "Please log in to access Event Selection", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         else -> currentScreen = selectedItem
                     }
                 }
@@ -775,6 +784,7 @@ fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) ->
     val scope = rememberCoroutineScope()
     val isSheetExpanding = sheetState.targetValue == SheetValue.Expanded
     val isSheetFullyExpanded = sheetState.currentValue == SheetValue.Expanded
+
 
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
