@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,14 +32,18 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
@@ -66,9 +71,11 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDrawerState
@@ -84,9 +91,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -149,6 +159,7 @@ fun AppWithNavDrawer() {
         drawerState = drawerState,
         drawerContent = {
             AppDrawerContent(
+                currentScreen = currentScreen,
                 navItems = navItems,
                 isAdmin = isAdmin,
                 onItemClick = { selectedItem ->
@@ -177,6 +188,12 @@ fun AppWithNavDrawer() {
         Crossfade(targetState = currentScreen, label = "ScreenCrossfade") { screen ->
             when (screen) {
                 "Source to Sea" -> LoginScreenWithSwipeableSheet(loggedIn, { loggedIn = it }, { scope.launch { drawerState.open() } })
+                "Interception" -> InterceptionScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Education" -> EducationScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Innovation" -> InnovationScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Our Story" -> OurStoryScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "The Team" -> TheTeamScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Contact" -> ContactScreen(onBackClick = { currentScreen = "Source to Sea" })
                 "Admin Panel" -> {
                     if (isAdmin) {
                         AdminPanelScreen({ scope.launch { drawerState.open() } }, { newScreen -> currentScreen = newScreen })
@@ -204,7 +221,464 @@ fun AppWithNavDrawer() {
         }
     }
 }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InterceptionScreen(onBackClick: () -> Unit) { //interception info page
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Interception") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Our Interception Technology",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
 
+            Image(
+                painter = painterResource(id = R.drawable.booms_in_action),
+                contentDescription = "Litterboom in a river",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "At the core of our mission is our innovative river interception technology. We deploy passively collecting, 100% recyclable plastic pipes known as 'litter booms' across rivers to catch and collect floating plastic pollution.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "This preventative approach is crucial. By capturing waste in our river systems, we stop it from ever reaching the ocean, preventing further harm to marine ecosystems.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EducationScreen(onBackClick: () -> Unit) { //education screen
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Education") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Empowering Through Education",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.innovation),
+                contentDescription = "Community education session",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "We believe that lasting change comes from knowledge. Our education programs aim to inspire a new generation of environmental stewards by teaching the youth how to protect their ocean heritage.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Our approach focuses on three key areas: educating the public with facts, empowering the youth, and guiding businesses on balancing profit with sustainability. We provide an 'Education Toolkit' for teachers to help engage learners on the subject of plastic, its challenges, and what we can do to solve the problem together.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InnovationScreen(onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Innovation") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Innovation & The Circular Economy",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.waste_audit),
+                contentDescription = "Upcycled plastic products",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "We believe that simply collecting waste isn't enough. True innovation lies in creating value from the pollution we recover. Our Innovation Hub is where this transformation happens.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Through our 'Wastepreneur Programme', we train and equip local entrepreneurs to turn river plastic into new, durable products. By creating an economic incentive for materials that would otherwise have no recycling value, we empower communities and help build a sustainable circular economy from the ground up.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OurStoryScreen(onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Our Story") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "A Mission Born from Passion",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.cameron_service),
+                contentDescription = "The Litterboom Project Team",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(450.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "The Litterboom Project was initiated in 2017 by our founder, Cameron Service. As a passionate surfer and trail builder, he was constantly confronted with the devastating amount of plastic pollution flowing down our rivers into the ocean.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "He realised that while beach clean-ups were important, a more effective, preventative solution was needed. This led to a simple yet powerful idea: targeting the river systems to intercept the waste upstream. What began as a pilot project with a small team has now grown into a nationwide movement, preventing millions of kilograms of plastic from ever reaching the sea.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TheTeamScreen(onBackClick: () -> Unit) {
+    // Data class to hold team member information
+    data class TeamMember(val name: String, val role: String, val bio: String)
+
+    val teamMembers = listOf(
+        TeamMember("Cameron Service", "CEO & Founder", "Cameron's passion for the ocean and outdoors led him to create a project to tackle the plastic pollution crisis at its source: our rivers."),
+        TeamMember("Rudi Clark", "KZN Director", "Rudi manages daily operations and leads the Innovation Hub in KwaZulu-Natal, connecting people and ideas to find lasting solutions."),
+        TeamMember("Megan Swart", "Cape Town Project Manager", "Megan's passion for protecting rivers and coastlines drives her work, inspiring others to join the fight against plastic pollution."),
+        TeamMember("Casey Pratt", "Media Manager", "Through social media and photography, Casey shares The Litterboom Project's story to raise awareness and inspire action."),
+        TeamMember("Jihaad Jacobs", "Cape Town Ops Manager", "Jihaad leads teams, coordinates logistics, and oversees events, using his experience in waste management to protect the environment.")
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("The Team") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                ),
+            contentPadding = PaddingValues(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item {
+                Text(
+                    text = "Meet Our Dedicated Team",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            items(teamMembers) { member ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(member.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(member.role, style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.9f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(member.bio, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ContactScreen(onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Contact Us") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Get In Touch",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // General Enquiries Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("General Enquiries", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Email, contentDescription = "Email", tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("info@thelitterboomproject.com", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Durban Office Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Durban Office (KZN)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Address", tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("100 Gallan Road, Umbogintwini, 4126", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Cape Town Office Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Cape Town Office", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Address", tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("3rd Floor, Tifco Building, 280 Voortrekker Road, Maitland", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// placeholder for the other info pages for now
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InfoPagePlaceholder(screenName: String, onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(screenName) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding).fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Content for $screenName page.")
+        }
+    }
+}
 
 @Composable
 fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
@@ -848,6 +1322,7 @@ fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) ->
 
 @Composable
 fun AppDrawerContent(
+    currentScreen: String,
     navItems: List<String>,
     isAdmin: Boolean,
     onItemClick: (String) -> Unit
@@ -865,7 +1340,7 @@ fun AppDrawerContent(
             )
         }
         navItems.forEach { item ->
-            val isSelected = item == "Source to Sea"
+            val isSelected = item == currentScreen
             NavigationDrawerItem(
                 label = { Text(item, style = MaterialTheme.typography.bodyLarge) },
                 selected = isSelected,
@@ -1204,13 +1679,47 @@ fun CollapsedStateContent() { //background content when login is collapsed
             )
         }
         Spacer(modifier = Modifier.height(24.dp))
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ImagePlaceholder(modifier = Modifier.size(150.dp))
-                ImagePlaceholder(modifier = Modifier.size(120.dp).align(Alignment.Bottom))
-            }
-            ImagePlaceholder(modifier = Modifier.size(150.dp, 120.dp).offset(y = (-20).dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Image 1 (Back Left)
+            Image(
+                painter = painterResource(id = R.drawable.river_cleanup),
+                contentDescription = "Community cleanup",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(180.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.CenterStart)
+
+            )
+            // Image 2 (Top Right)
+            Image(
+                painter = painterResource(id = R.drawable.plastic_bottles),
+                contentDescription = "River cleanup",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(160.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.TopEnd)
+
+            )
+            // Image 3 (Bottom Center)
+            Image(
+                painter = painterResource(id = R.drawable.litterboom_employee),
+                contentDescription = "Collected plastic waste",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (5).dp)
+            )
         }
+
         Spacer(modifier = Modifier.weight(1f))
 
         ClickableWebsiteText(modifier = Modifier.padding(bottom = 120.dp))
