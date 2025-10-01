@@ -23,8 +23,10 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".ui.BagEntryActivity" />
+
         <activity
-            android:name=".ui.WasteWorkerActivity"
+            android:name=".WasteWorkerActivity"
             android:exported="false"
             android:label="User Dashboard" >
         </activity>
@@ -38,8 +40,19 @@
         <activity
             android:name=".ui.MainLoggingMenuActivity"
             android:exported="false"
-            android:label="Logging Menu" >
+            android:label="Logging Main Menu" >
         </activity>
+
+        <activity
+            android:name=".ui.FieldLoggingActivity"
+            android:exported="false"
+            android:label="Log Item Details" >
+        </activity>
+
+        <activity
+            android:name=".ui.EventSelectionActivity"
+            android:exported="false"
+            android:label="Select Event" />
 
     </application>
 

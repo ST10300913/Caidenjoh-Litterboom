@@ -3,31 +3,100 @@ package com.example.litterboom
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -42,22 +111,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import com.example.litterboom.ui.theme.LitterboomTheme
-import kotlinx.coroutines.launch
 import com.example.litterboom.data.AppDatabase
-import com.example.litterboom.data.User
 import com.example.litterboom.data.Event
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Divider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.saveable.rememberSaveable
-import android.widget.Toast
-import java.util.Date
+import com.example.litterboom.data.LoggingField
+import com.example.litterboom.data.SubCategoryField
+import com.example.litterboom.data.User
+import com.example.litterboom.data.WasteCategory
+import com.example.litterboom.data.WasteSubCategory
+import com.example.litterboom.ui.EventSelectionActivity
+import com.example.litterboom.ui.theme.LitterboomTheme
+import com.example.litterboom.data.CurrentUserManager
+import kotlinx.coroutines.launch
 import java.util.Calendar
-import androidx.compose.material3.Button
-import com.example.litterboom.ui.WasteWorkerActivity
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -65,76 +131,980 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        AppDatabase.getDatabase(this)
+
         setContent {
             LitterboomTheme {
-                AppWithNavDrawer() //wraps page in drawer for navigation
+                AppWithNavDrawer()
             }
         }
     }
 }
 
 @Composable
-fun AppWithNavDrawer() { //main screen
+fun AppWithNavDrawer() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var currentScreen by remember { mutableStateOf("Source to Sea") }
-
     var loggedIn by rememberSaveable { mutableStateOf(false) }
+    val isAdmin = CurrentUserManager.isAdmin()
+    val context = LocalContext.current
+    val navItems = remember(loggedIn, isAdmin) {
+        listOf("Source to Sea", "Interception", "Education", "Innovation", "Our Story", "The Team", "Contact").plus(
+            if (loggedIn && isAdmin) listOf("Admin Panel") else emptyList()
+        ).plus(if (loggedIn) listOf("Event Selection", "Logout") else emptyList())
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            AppDrawerContent { selectedItem ->
-                scope.launch { drawerState.close() }
-                currentScreen = selectedItem
-            }
+            AppDrawerContent(
+                currentScreen = currentScreen,
+                navItems = navItems,
+                isAdmin = isAdmin,
+                onItemClick = { selectedItem ->
+                    scope.launch { drawerState.close() }
+                    when (selectedItem) {
+                        "Logout" -> {
+                            CurrentUserManager.logout()
+                            loggedIn = false
+                            currentScreen = "Source to Sea"
+                        }
+                        "Admin Panel" -> currentScreen = "Admin Panel"
+                        "Event Selection" -> {
+                            if (loggedIn) {
+                                val intent = Intent(context, EventSelectionActivity::class.java)
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(context, "Please log in to access Event Selection", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        else -> currentScreen = selectedItem
+                    }
+                }
+            )
         }
     ) {
-        //Show different content based on selected item
-        when (currentScreen) {
-            "Source to Sea" -> {
-                LoginScreenWithSwipeableSheet(
-                    loggedIn = loggedIn,
-                    onLoginChange = { loggedIn = it },
-                    onMenuClick = { scope.launch { drawerState.open() } }
-                )
-            }
-            "Admin Panel" -> {
-                AdminControlPanelScreen(
-                    onMenuClick = { scope.launch { drawerState.open() } },
-                    onItemClick = { currentScreen = it }
-                )
-            }
-            "Create Event" -> {
-                CreateEventScreen(
-                    onMenuClick = { scope.launch { drawerState.open() } },
-                    onEventCreated = { event -> currentScreen = "Event List"
+        Crossfade(targetState = currentScreen, label = "ScreenCrossfade") { screen ->
+            when (screen) {
+                "Source to Sea" -> LoginScreenWithSwipeableSheet(loggedIn, { loggedIn = it }, { scope.launch { drawerState.open() } })
+                "Interception" -> InterceptionScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Education" -> EducationScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Innovation" -> InnovationScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Our Story" -> OurStoryScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "The Team" -> TheTeamScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Contact" -> ContactScreen(onBackClick = { currentScreen = "Source to Sea" })
+                "Admin Panel" -> {
+                    if (isAdmin) {
+                        AdminPanelScreen({ scope.launch { drawerState.open() } }, { newScreen -> currentScreen = newScreen })
+                    } else {
+                        //Redirect non-admins
+                        currentScreen = "Source to Sea"
+                        Toast.makeText(LocalContext.current, "Admin access required", Toast.LENGTH_SHORT).show()
                     }
-                )
+                }
+                "Add User" -> AddUserScreen(onBackClick = { currentScreen = "Admin Panel" })
+                "Create Event" -> CreateEventScreen({ currentScreen = "Event List" }, { currentScreen = "Admin Panel" })
+                "Event List" -> EventListScreen(onBackClick = { currentScreen = "Admin Panel" })
+                "Manage Categories" -> ManageCategoriesScreen { currentScreen = "Admin Panel" }
+                "Manage Fields" -> ManageFieldsScreen { currentScreen = "Admin Panel" }
+                else -> {
+                    Box(modifier = Modifier.fillMaxSize().background(Color.LightGray), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = screen, fontSize = 24.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { currentScreen = "Source to Sea" }) { Text("Go Back") }
+                        }
+                    }
+                }
             }
-            "Event List" -> {
-                EventListScreen(
-                    onMenuClick = { scope.launch { drawerState.open() } },
-                    onItemClick = { currentScreen = it }
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InterceptionScreen(onBackClick: () -> Unit) { //interception info page
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Interception") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
                 )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Our Interception Technology",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.booms_in_action),
+                contentDescription = "Litterboom in a river",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "At the core of our mission is our innovative river interception technology. We deploy passively collecting, 100% recyclable plastic pipes known as 'litter booms' across rivers to catch and collect floating plastic pollution.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "This preventative approach is crucial. By capturing waste in our river systems, we stop it from ever reaching the ocean, preventing further harm to marine ecosystems.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EducationScreen(onBackClick: () -> Unit) { //education screen
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Education") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Empowering Through Education",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.innovation),
+                contentDescription = "Community education session",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "We believe that lasting change comes from knowledge. Our education programs aim to inspire a new generation of environmental stewards by teaching the youth how to protect their ocean heritage.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Our approach focuses on three key areas: educating the public with facts, empowering the youth, and guiding businesses on balancing profit with sustainability. We provide an 'Education Toolkit' for teachers to help engage learners on the subject of plastic, its challenges, and what we can do to solve the problem together.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InnovationScreen(onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Innovation") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Innovation & The Circular Economy",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.waste_audit),
+                contentDescription = "Upcycled plastic products",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "We believe that simply collecting waste isn't enough. True innovation lies in creating value from the pollution we recover. Our Innovation Hub is where this transformation happens.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Through our 'Wastepreneur Programme', we train and equip local entrepreneurs to turn river plastic into new, durable products. By creating an economic incentive for materials that would otherwise have no recycling value, we empower communities and help build a sustainable circular economy from the ground up.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OurStoryScreen(onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Our Story") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "A Mission Born from Passion",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.cameron_service),
+                contentDescription = "The Litterboom Project Team",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(450.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "The Litterboom Project was initiated in 2017 by our founder, Cameron Service. As a passionate surfer and trail builder, he was constantly confronted with the devastating amount of plastic pollution flowing down our rivers into the ocean.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "He realised that while beach clean-ups were important, a more effective, preventative solution was needed. This led to a simple yet powerful idea: targeting the river systems to intercept the waste upstream. What began as a pilot project with a small team has now grown into a nationwide movement, preventing millions of kilograms of plastic from ever reaching the sea.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TheTeamScreen(onBackClick: () -> Unit) {
+    // Data class to hold team member information
+    data class TeamMember(val name: String, val role: String, val bio: String)
+
+    val teamMembers = listOf(
+        TeamMember("Cameron Service", "CEO & Founder", "Cameron's passion for the ocean and outdoors led him to create a project to tackle the plastic pollution crisis at its source: our rivers."),
+        TeamMember("Rudi Clark", "KZN Director", "Rudi manages daily operations and leads the Innovation Hub in KwaZulu-Natal, connecting people and ideas to find lasting solutions."),
+        TeamMember("Megan Swart", "Cape Town Project Manager", "Megan's passion for protecting rivers and coastlines drives her work, inspiring others to join the fight against plastic pollution."),
+        TeamMember("Casey Pratt", "Media Manager", "Through social media and photography, Casey shares The Litterboom Project's story to raise awareness and inspire action."),
+        TeamMember("Jihaad Jacobs", "Cape Town Ops Manager", "Jihaad leads teams, coordinates logistics, and oversees events, using his experience in waste management to protect the environment.")
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("The Team") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                ),
+            contentPadding = PaddingValues(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item {
+                Text(
+                    text = "Meet Our Dedicated Team",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
             }
 
-            else -> {
-
-                Box(
+            items(teamMembers) { member ->
+                Card(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.LightGray),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
                 ) {
-                    Text(text = currentScreen, fontSize = 24.sp)
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(member.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(member.role, style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.9f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(member.bio, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                    }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun ContactScreen(onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Contact Us") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Get In Touch",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // General Enquiries Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("General Enquiries", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Email, contentDescription = "Email", tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("info@thelitterboomproject.com", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Durban Office Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Durban Office (KZN)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Address", tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("100 Gallan Road, Umbogintwini, 4126", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Cape Town Office Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Cape Town Office", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Address", tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("3rd Floor, Tifco Building, 280 Voortrekker Road, Maitland", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// placeholder for the other info pages for now
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InfoPagePlaceholder(screenName: String, onBackClick: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(screenName) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding()
+            )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding).fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Content for $screenName page.")
+        }
+    }
+}
+
+@Composable
+fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, "Menu", tint = Color.White) }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Admin Panel", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+            }
+            AdminMenu(
+                onAddUserClick = { navigateTo("Add User") },
+                onCreateEventClick = { navigateTo("Create Event") },
+                onEventListClick = { navigateTo("Event List") },
+                onManageCategoriesClick = { navigateTo("Manage Categories") },
+                onManageFieldsClick = { navigateTo("Manage Fields") }
+            )
+        }
+    }
+}
+
+@Composable
+fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                AdminIconButton("Add User", Icons.Default.PersonAdd, onAddUserClick)
+                AdminIconButton("Create Event", Icons.Default.Event, onCreateEventClick)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                AdminIconButton("Event List", Icons.AutoMirrored.Filled.ViewList, onEventListClick)
+                AdminIconButton("Manage Categories", Icons.Default.Category, onManageCategoriesClick)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            AdminIconButton("Manage Fields", Icons.Default.Settings, onManageFieldsClick)
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdminIconButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) { //Icons and cards for admin functionality buttons
+    Card(
+        onClick = onClick,
+        modifier = Modifier.size(150.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = text, modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddUserScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf("User") }
+    var roleMenuExpanded by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("") }
+    var users by remember { mutableStateOf(listOf<User>()) }
+
+    fun refreshUsers() {
+        scope.launch { users = AppDatabase.getDatabase(context).userDao().getAllUsers() }
+    }
+
+    LaunchedEffect(Unit) { refreshUsers() }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.secondary,
+                    MaterialTheme.colorScheme.primary
+                )
+            )
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        "Back",
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    "Add User",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = Color.White.copy(alpha = 0.9f)
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = Color.White.copy(alpha = 0.9f)
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            ExposedDropdownMenuBox(
+                expanded = roleMenuExpanded,
+                onExpandedChange = { roleMenuExpanded = !roleMenuExpanded }) {
+                OutlinedTextField(
+                    value = selectedRole,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Role") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = roleMenuExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        containerColor = Color.White.copy(alpha = 0.9f)
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = roleMenuExpanded,
+                    onDismissRequest = { roleMenuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("User") },
+                        onClick = { selectedRole = "User"; roleMenuExpanded = false })
+                    DropdownMenuItem(
+                        text = { Text("Admin") },
+                        onClick = { selectedRole = "Admin"; roleMenuExpanded = false })
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = {
+                    scope.launch {
+                        if (username.isNotBlank() && password.isNotBlank()) {
+                            AppDatabase.getDatabase(context).userDao().insertUser(
+                                User(
+                                    username = username,
+                                    password = password,
+                                    role = selectedRole
+                                )
+                            )
+                            username = ""
+                            password = ""
+                            successMessage = "User added successfully!"
+                            refreshUsers()
+                        } else {
+                            successMessage = "Please fill all fields."
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Text(
+                    "Add User",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            if (successMessage.isNotEmpty()) {
+                Text(
+                    text = successMessage,
+                    color = Color.White,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                "Current Users:",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(users) { user ->
+                    Text(
+                        text = "${user.id}: ${user.username} (${user.role})",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Divider(color = Color.White.copy(alpha = 0.3f))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageCategoriesScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var categories by remember { mutableStateOf<List<WasteCategory>>(emptyList()) }
+    var newCategoryName by remember { mutableStateOf("") }
+    var newSubCategoryName by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<WasteCategory?>(null) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+
+    fun refreshCategories() {
+        scope.launch {
+            categories = AppDatabase.getDatabase(context).wasteDao().getAllCategories()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshCategories()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.primary
+                    )
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Manage Categories", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Add new Main Category
+            Text("Add New Main Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            OutlinedTextField(
+                value = newCategoryName,
+                onValueChange = { newCategoryName = it },
+                label = { Text("Category Name") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (newCategoryName.isNotBlank()) {
+                        AppDatabase.getDatabase(context).wasteDao().insertCategory(WasteCategory(name = newCategoryName))
+                        newCategoryName = ""
+                        refreshCategories()
+                        Toast.makeText(context, "Category Added", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Add Category")
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
+
+            // Add new Sub-Category
+            Text("Add New Sub-Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = !categoryMenuExpanded }) {
+                OutlinedTextField(
+                    value = selectedCategory?.name ?: "Select Category",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+                )
+                ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(text = { Text(category.name) }, onClick = { selectedCategory = category; categoryMenuExpanded = false })
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = newSubCategoryName,
+                onValueChange = { newSubCategoryName = it },
+                label = { Text("Sub-Category Name") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (newSubCategoryName.isNotBlank() && selectedCategory != null) {
+                        AppDatabase.getDatabase(context).wasteDao().insertSubCategory(WasteSubCategory(name = newSubCategoryName, categoryId = selectedCategory!!.id))
+                        newSubCategoryName = ""
+                        Toast.makeText(context, "Sub-Category Added", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Add Sub-Category")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageFieldsScreen(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // State for creating new fields
+    var newFieldName by remember { mutableStateOf("") }
+
+    // State for assigning fields
+    var allSubCategories by remember { mutableStateOf<List<WasteSubCategory>>(emptyList()) }
+    var allFields by remember { mutableStateOf<List<LoggingField>>(emptyList()) }
+    var selectedSubCategory by remember { mutableStateOf<WasteSubCategory?>(null) }
+    var selectedField by remember { mutableStateOf<LoggingField?>(null) }
+    var subCategoryMenuExpanded by remember { mutableStateOf(false) }
+    var fieldMenuExpanded by remember { mutableStateOf(false) }
+
+    fun refreshData() {
+        scope.launch {
+            val db = AppDatabase.getDatabase(context)
+
+            val categories = db.wasteDao().getAllCategories()
+            allSubCategories = categories.flatMap { db.wasteDao().getSubCategoriesForCategory(it.id) }
+            allFields = db.wasteDao().getAllLoggingFields()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshData()
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Manage Logging Fields", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Section to create a new field type
+            Text("Create New Field Type", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            OutlinedTextField(value = newFieldName, onValueChange = { newFieldName = it }, label = { Text("Field Name (e.g., Colour)") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (newFieldName.isNotBlank()) {
+                        AppDatabase.getDatabase(context).wasteDao().insertLoggingField(LoggingField(fieldName = newFieldName))
+                        newFieldName = ""
+                        refreshData()
+                        Toast.makeText(context, "Field Created", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Create Field")
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
+
+            // Section to assign a field to a sub-category
+            Text("Assign Field to Sub-Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
+
+            // Sub-category dropdown
+            ExposedDropdownMenuBox(expanded = subCategoryMenuExpanded, onExpandedChange = { subCategoryMenuExpanded = !subCategoryMenuExpanded }) {
+                OutlinedTextField(value = selectedSubCategory?.name ?: "Select Sub-Category", onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subCategoryMenuExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+                ExposedDropdownMenu(expanded = subCategoryMenuExpanded, onDismissRequest = { subCategoryMenuExpanded = false }) {
+                    allSubCategories.forEach { subCategory ->
+                        DropdownMenuItem(text = { Text(subCategory.name) }, onClick = { selectedSubCategory = subCategory; subCategoryMenuExpanded = false })
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Field dropdown
+            ExposedDropdownMenuBox(expanded = fieldMenuExpanded, onExpandedChange = { fieldMenuExpanded = !fieldMenuExpanded }) {
+                OutlinedTextField(value = selectedField?.fieldName ?: "Select Field", onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fieldMenuExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+                ExposedDropdownMenu(expanded = fieldMenuExpanded, onDismissRequest = { fieldMenuExpanded = false }) {
+                    allFields.forEach { field ->
+                        DropdownMenuItem(text = { Text(field.fieldName) }, onClick = { selectedField = field; fieldMenuExpanded = false })
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = {
+                scope.launch {
+                    if (selectedSubCategory != null && selectedField != null) {
+                        AppDatabase.getDatabase(context).wasteDao().assignFieldToSubCategory(SubCategoryField(subCategoryId = selectedSubCategory!!.id, fieldId = selectedField!!.id))
+                        Toast.makeText(context, "Field Assigned", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                Text("Assign Field")
+            }
+        }
+    }
+}
+/*@Composable
 fun AdminControlPanelScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -277,7 +1247,7 @@ fun AdminControlPanelScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Un
         }
 
     }
-}
+}*/
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -290,6 +1260,7 @@ fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) ->
     val scope = rememberCoroutineScope()
     val isSheetExpanding = sheetState.targetValue == SheetValue.Expanded
     val isSheetFullyExpanded = sheetState.currentValue == SheetValue.Expanded
+
 
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
@@ -350,35 +1321,32 @@ fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) ->
 }
 
 @Composable
-fun AppDrawerContent(onItemClick: (String) -> Unit) { //hamburger menu drawer for app
-    val navItems = listOf(
-        "Source to Sea", "Interception", "Education", "Innovation",
-        "Our Story", "The Team", "Event List", "Contact", "Admin Panel"
-    )
-
+fun AppDrawerContent(
+    currentScreen: String,
+    navItems: List<String>,
+    isAdmin: Boolean,
+    onItemClick: (String) -> Unit
+) {
     ModalDrawerSheet(
         modifier = Modifier.width(280.dp),
         drawerContainerColor = MaterialTheme.colorScheme.primary
     ) {
         Spacer(Modifier.height(16.dp))
-        navItems.forEach { item -> //loop through nav items
-            val isSelected = item == "Source to Sea"
+        if (CurrentUserManager.currentUser != null) {
+            Text(
+                text = "Logged in as ${CurrentUserManager.currentUser?.role}",
+                color = Color.White,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+        navItems.forEach { item ->
+            val isSelected = item == currentScreen
             NavigationDrawerItem(
                 label = { Text(item, style = MaterialTheme.typography.bodyLarge) },
                 selected = isSelected,
-                onClick = {
-                    if (item == "Source to Sea") {
-                        // This is the main activity, so we just close the drawer.
-                        onItemClick(item)
-                    } else {
-                        // For other items, we still close the drawer but will add navigation later.
-                        onItemClick(item)
-                        // Add navigation logic here to go to the correct screen
-                    }
-
-                },
+                onClick = { onItemClick(item) },
                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                colors = NavigationDrawerItemDefaults.colors( //styling for nav items
+                colors = NavigationDrawerItemDefaults.colors(
                     selectedTextColor = Color.White,
                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
                     unselectedTextColor = Color.White,
@@ -496,12 +1464,14 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                         val db = AppDatabase.getDatabase(context)
                                         val user = db.userDao().getUser(username, password)
                                         if (user != null) {
-                                            loginMessage = "Login successful!"
+                                            loginMessage = "Login successful as ${user.role}!"
+                                            CurrentUserManager.login(user)
                                             onLoginSuccess()
-                                            val intent = Intent(context, WasteWorkerActivity::class.java) //change to waste worker activity
+                                            val intent = Intent(context, EventSelectionActivity::class.java) //change to waste worker activity
                                             context.startActivity(intent)
                                         } else {
                                             loginMessage = "Invalid username or password."
+
                                         }
                                     } else {
                                         loginMessage = "Enter username and password."
@@ -533,202 +1503,119 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateEventScreen(onMenuClick: () -> Unit, onEventCreated: (Event) -> Unit) {
+fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
     var eventName by remember { mutableStateOf("") }
     var eventDate by remember { mutableStateOf(Calendar.getInstance().time) }
     var eventLocation by remember { mutableStateOf("") }
-
-    val datePickerDialog = android.app.DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            val calendar = Calendar.getInstance()
-            calendar.set(year, month, dayOfMonth)
-            eventDate = calendar.time
-        },
-        Calendar.getInstance().get(Calendar.YEAR),
-        Calendar.getInstance().get(Calendar.MONTH),
-        Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onMenuClick) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu")
+    val calendar = Calendar.getInstance()
+    calendar.time = eventDate
+    val datePickerDialog = android.app.DatePickerDialog(context, { _, year, month, dayOfMonth ->
+        calendar.set(year, month, dayOfMonth)
+        eventDate = calendar.time
+    }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Create an Event", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text("Creating an Event", style = MaterialTheme.typography.headlineLarge)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        OutlinedTextField(
-            value = eventName,
-            onValueChange = { eventName = it },
-            label = { Text("Event Name") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(onClick = { datePickerDialog.show() }, modifier = Modifier.fillMaxWidth()) {
-            Text("Select Event Date: ${android.text.format.DateFormat.format("yyyy-MM-dd", eventDate)}")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = eventLocation,
-            onValueChange = { eventLocation = it },
-            label = { Text("Event Location") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = {
-                val db = AppDatabase.getDatabase(context)
-                scope.launch {
-                    if (eventName.isNotBlank() && eventLocation.isNotBlank()) {
-                        db.eventDao().insertEvent(
-                            Event(
-                                name = eventName,
-                                date = eventDate.time,
-                                location = eventLocation
-                            )
-                        )
-                        Toast.makeText(context, "Event created!", Toast.LENGTH_SHORT).show()
-                        eventName = ""
-                        eventLocation = ""
-                        onEventCreated(
-                            Event(name = eventName, date = eventDate.time, location = eventLocation)
-                        )
-                    } else {
-                        Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+            Spacer(modifier = Modifier.height(32.dp))
+            OutlinedTextField(value = eventName, onValueChange = { eventName = it }, label = { Text("Event Name") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(value = eventLocation, onValueChange = { eventLocation = it }, label = { Text("Event Location") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { datePickerDialog.show() }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Text("Date: ${android.text.format.DateFormat.format("yyyy-MM-dd", eventDate)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Button(
+                onClick = {
+                    scope.launch {
+                        if (eventName.isNotBlank() && eventLocation.isNotBlank()) {
+                            AppDatabase.getDatabase(context).eventDao().insertEvent(Event(name = eventName, date = eventDate.time, location = eventLocation))
+                            Toast.makeText(context, "Event created!", Toast.LENGTH_SHORT).show()
+                            onEventCreated(Event(name = eventName, date = eventDate.time, location = eventLocation))
+                        } else {
+                            Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Create Event")
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Text("Create Event", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
 @Composable
-fun EventListScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Unit) {
+fun EventListScreen(onBackClick: () -> Unit) {
+
     val context = LocalContext.current
     var events by remember { mutableStateOf(listOf<Event>()) }
     val scope = rememberCoroutineScope()
-
     var startDate by remember { mutableStateOf<Date?>(null) }
     var endDate by remember { mutableStateOf<Date?>(null) }
-
     val db = AppDatabase.getDatabase(context)
-
-    LaunchedEffect(Unit) {
-        events = db.eventDao().getAllEvents()
+    LaunchedEffect(Unit) { events = db.eventDao().getAllEvents() }
+    fun showDatePicker(isStartDate: Boolean) {
+        val calendar = Calendar.getInstance()
+        android.app.DatePickerDialog(context, { _, year, month, day ->
+            val cal = Calendar.getInstance().apply { set(year, month, day) }
+            if (isStartDate) startDate = cal.time else endDate = cal.time
+            scope.launch {
+                val allEvents = db.eventDao().getAllEvents()
+                events = allEvents.filter { event ->
+                    val afterStartDate = startDate?.let { event.date >= it.time } ?: true
+                    val beforeEndDate = endDate?.let { event.date <= it.time } ?: true
+                    afterStartDate && beforeEndDate
+                }
+            }
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
     }
-
-    val startDatePicker = android.app.DatePickerDialog(
-        context,
-        { _, year, month, day ->
-            val cal = Calendar.getInstance()
-            cal.set(year, month, day)
-            startDate = cal.time
-            // Filter events after picking start date
-            scope.launch {
-                events = db.eventDao().getAllEvents().filter { event ->
-                    startDate?.let { event.date >= it.time } ?: true
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Event List", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { showDatePicker(true) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Text(startDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() } ?: "Start Date", color = MaterialTheme.colorScheme.primary)
+                }
+                Button(onClick = { showDatePicker(false) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Text(endDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() } ?: "End Date", color = MaterialTheme.colorScheme.primary)
+                }
+                Button(onClick = {
+                    startDate = null
+                    endDate = null
+                    scope.launch { events = db.eventDao().getAllEvents() }
+                }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Text("Clear", color = MaterialTheme.colorScheme.primary)
                 }
             }
-        },
-        Calendar.getInstance().get(Calendar.YEAR),
-        Calendar.getInstance().get(Calendar.MONTH),
-        Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-    )
-
-    val endDatePicker = android.app.DatePickerDialog(
-        context,
-        { _, year, month, day ->
-            val cal = Calendar.getInstance()
-            cal.set(year, month, day)
-            endDate = cal.time
-            // Filter events after picking end date
-            scope.launch {
-                events = db.eventDao().getAllEvents().filter { event ->
-                    endDate?.let { event.date <= it.time } ?: true
-                }
-            }
-        },
-        Calendar.getInstance().get(Calendar.YEAR),
-        Calendar.getInstance().get(Calendar.MONTH),
-        Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-    )
-
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onMenuClick) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu")
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text("Event List", style = MaterialTheme.typography.headlineLarge)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(onClick = { startDatePicker.show() }) {
-                Text(
-                    startDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() }
-                        ?: "Start Date"
-                )
-            }
-
-            Button(onClick = { endDatePicker.show() }) {
-                Text(
-                    endDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() }
-                        ?: "End Date"
-                )
-            }
-
-            Button(onClick = {
-                // Reset filters
-                startDate = null
-                endDate = null
-                scope.launch {
-                    events = db.eventDao().getAllEvents()
-                }
-            }) {
-                Text("Clear")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        LazyColumn {
-            items(events) { event ->
-                Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                    Text(event.name, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "${android.text.format.DateFormat.format("yyyy-MM-dd", Date(event.date))} - ${event.location}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Divider(color = Color.Gray.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(24.dp))
+            LazyColumn {
+                items(events) { event ->
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Text(event.name, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        Text("${android.text.format.DateFormat.format("yyyy-MM-dd", Date(event.date))} - ${event.location}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                        Divider(color = Color.White.copy(alpha = 0.3f))
+                    }
                 }
             }
         }
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 fun ClickableWebsiteText(modifier: Modifier = Modifier) { //clickable text for redirect to website
     val context = LocalContext.current
@@ -792,13 +1679,47 @@ fun CollapsedStateContent() { //background content when login is collapsed
             )
         }
         Spacer(modifier = Modifier.height(24.dp))
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ImagePlaceholder(modifier = Modifier.size(150.dp))
-                ImagePlaceholder(modifier = Modifier.size(120.dp).align(Alignment.Bottom))
-            }
-            ImagePlaceholder(modifier = Modifier.size(150.dp, 120.dp).offset(y = (-20).dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Image 1 (Back Left)
+            Image(
+                painter = painterResource(id = R.drawable.river_cleanup),
+                contentDescription = "Community cleanup",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(180.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.CenterStart)
+
+            )
+            // Image 2 (Top Right)
+            Image(
+                painter = painterResource(id = R.drawable.plastic_bottles),
+                contentDescription = "River cleanup",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(160.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.TopEnd)
+
+            )
+            // Image 3 (Bottom Center)
+            Image(
+                painter = painterResource(id = R.drawable.litterboom_employee),
+                contentDescription = "Collected plastic waste",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (5).dp)
+            )
         }
+
         Spacer(modifier = Modifier.weight(1f))
 
         ClickableWebsiteText(modifier = Modifier.padding(bottom = 120.dp))
