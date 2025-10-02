@@ -3,7 +3,7 @@ package com.example.litterboom.data
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
-import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WasteDao {
@@ -34,4 +34,11 @@ interface WasteDao {
         WHERE scf.subCategoryId = :subCategoryId
     """)
     suspend fun getFieldsForSubCategory(subCategoryId: Int): List<LoggingField>
+
+    // --- Photos ---
+    @Insert
+    suspend fun insertPhoto(photo: ItemPhoto)
+
+    @Query("SELECT * FROM item_photos WHERE subCategoryId = :subCategoryId ORDER BY takenAt DESC")
+    fun photosFor(subCategoryId: Int): Flow<List<ItemPhoto>>
 }

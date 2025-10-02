@@ -9,9 +9,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [User::class, Event::class, WasteCategory::class, WasteSubCategory::class, LoggingField::class,
-          SubCategoryField::class, Bag::class], version = 9, exportSchema = false)
-
+@Database(
+    entities = [
+        User::class, Event::class, WasteCategory::class, WasteSubCategory::class,
+        LoggingField::class, SubCategoryField::class, Bag::class,
+        ItemPhoto::class // <— NEW
+    ],
+    version = 11, // <— BUMP this (use any number > your current)
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun userDao(): UserDao
@@ -20,8 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bagDao(): BagDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
+        @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -52,11 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
         private suspend fun seedAdminUser(userDao: UserDao) {
             val existingAdmin = userDao.getUser("admin", "admin")
             if (existingAdmin == null) {
-                val adminUser = User(
-                    username = "admin",
-                    password = "admin",
-                    role = "Admin"
-                )
+                val adminUser = User(username = "admin", password = "admin", role = "Admin")
                 userDao.insertUser(adminUser)
             }
         }
