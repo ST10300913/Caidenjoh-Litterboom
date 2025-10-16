@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -39,8 +40,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,18 +58,23 @@ import androidx.core.view.WindowCompat
 import com.example.litterboom.ui.MainLoggingMenuActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
 import java.io.Serializable
+import com.example.litterboom.data.AppDatabase
+import com.example.litterboom.data.CurrentUserManager
+import com.example.litterboom.data.LoggedWaste
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class WasteWorkerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // Get the event name passed from EventSelectionActivity
         val eventName = intent.getStringExtra("SELECTED_EVENT_NAME") ?: "No Event Selected"
+        val eventId = intent.getIntExtra("EVENT_ID", -1)
 
         setContent {
             LitterboomTheme {
-                WasteWorkerScreen(eventName = eventName)
+                WasteWorkerScreen(eventName = eventName, eventId = eventId)
             }
         }
     }
@@ -80,7 +88,7 @@ data class LoggedEntry(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WasteWorkerScreen(eventName: String) { // Pass eventName as a parameter
+fun WasteWorkerScreen(eventName: String, eventId: Int) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -93,15 +101,35 @@ fun WasteWorkerScreen(eventName: String) { // Pass eventName as a parameter
         containerColor = Color.Transparent
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
-            WasteWorkerContent(innerPadding, eventName)
+            WasteWorkerContent(innerPadding, eventName, eventId)
         }
     }
 }
 
 @Composable
-fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String) {
+fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventId: Int) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val currentSessionEntries = remember { mutableStateListOf<LoggedEntry>() }
+
+    // Fetch previously logged data for this event when the screen loads
+    LaunchedEffect(eventId) {
+        if (eventId != -1) {
+            val db = AppDatabase.getDatabase(context)
+            val loggedItemsFromDb = db.loggedWasteDao().getWasteForEvent(eventId)
+            val mappedEntries = loggedItemsFromDb.map { loggedWaste ->
+                val detailsMap = mutableMapOf<String, String>()
+                try {
+                    val detailsJson = JSONObject(loggedWaste.details)
+                    detailsJson.keys().forEach { key ->
+                        detailsMap[key] = detailsJson.getString(key)
+                    }
+                } catch (e: Exception) { /* Handle error if JSON is invalid */ }
+                LoggedEntry(loggedWaste.category, loggedWaste.subCategory, detailsMap)
+            }
+            currentSessionEntries.addAll(mappedEntries)
+        }
+    }
 
     val loggingActivityLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -110,22 +138,26 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String) {
             result.data?.let { intent ->
                 val category = intent.getStringExtra("LOGGED_CATEGORY") ?: ""
                 val description = intent.getStringExtra("LOGGED_DESCRIPTION") ?: ""
-
-
                 val rawMap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent.getSerializableExtra("LOGGED_DETAILS", HashMap::class.java)
                 } else {
                     @Suppress("DEPRECATION")
                     intent.getSerializableExtra("LOGGED_DETAILS") as? HashMap<*, *>
                 }
-
                 val detailsMap = mutableMapOf<String, String>()
-                rawMap?.forEach { (key, value) ->
+                rawMap?.forEach { (key, value) -> detailsMap[key.toString()] = value.toString() }
 
-                    detailsMap[key.toString()] = value.toString()
+                val newEntry = LoggedEntry(category, description, detailsMap)
+                currentSessionEntries.add(0, newEntry)
+
+                // Save the new entry to the database
+                scope.launch {
+                    val userId = CurrentUserManager.currentUser?.id ?: -1
+                    val detailsJson = JSONObject(detailsMap as Map<*, *>).toString()
+                    val loggedWaste = LoggedWaste(eventId = eventId, userId = userId, category = category, subCategory = description, details = detailsJson)
+                    AppDatabase.getDatabase(context).loggedWasteDao().insertLoggedWaste(loggedWaste)
+                    Toast.makeText(context, "Entry saved!", Toast.LENGTH_SHORT).show()
                 }
-
-                currentSessionEntries.add(LoggedEntry(category, description, detailsMap))
             }
         }
     }
@@ -134,7 +166,8 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String) {
         modifier = Modifier.padding(contentPadding).fillMaxSize().padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Welcome back,....", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+        val currentUser = CurrentUserManager.currentUser
+        Text("Welcome back, ${currentUser?.username ?: "..."}!", style = MaterialTheme.typography.headlineLarge, color = Color.White)
         Text(
             "Not you? Logout",
             color = Color.White.copy(alpha = 0.8f),
@@ -144,7 +177,6 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String) {
                 context.startActivity(intent)
                 (context as? Activity)?.finish()
             }
-
         )
         Text("Logging for: $eventName", style = MaterialTheme.typography.titleMedium, color = Color.White)
         Spacer(modifier = Modifier.height(8.dp))
@@ -157,7 +189,7 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String) {
 
             if (currentSessionEntries.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No items logged in this session.", color = Color.Gray)
+                    Text("No items logged for this event yet.", color = Color.Gray)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
