@@ -26,11 +26,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import com.example.litterboom.WasteWorkerActivity
 import com.example.litterboom.data.AppDatabase
 import com.example.litterboom.data.Event
 import com.example.litterboom.ui.theme.LitterboomTheme
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.jvm.java
 
 class EventSelectionActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,97 +73,43 @@ fun EventSelectionScreen() {
                 .fillMaxSize()
                 .padding(24.dp)
                 .statusBarsPadding()
-                .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .navigationBarsPadding()
         ) {
-            // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { (context as? Activity)?.finish() }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    "Select an Event to Log",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = 40.sp // <-- increase size here
-                    ),
-                    textAlign = TextAlign.Start
-                )
+                Text("Select an Event to Log For", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Event list or empty state
             if (events.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            "No events found. Please ask an admin to create one.",
-                            modifier = Modifier.padding(24.dp),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No events found. Please ask an admin to create one.", color = Color.White)
                 }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(events) { event ->
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        Button(
+                            onClick = {
+                                val intent = Intent(context, WasteWorkerActivity::class.java).apply {
+                                    putExtra("SELECTED_EVENT_NAME", event.name)
+                                    putExtra("EVENT_ID", event.id)
+                                }
+                                context.startActivity(intent)
+                                (context as? Activity)?.finish()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = event.name,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 18.sp
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(event.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                 Text(
                                     "${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(event.date))} - ${event.location}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = {
-                                        val intent = Intent(context, BagEntryActivity::class.java).apply {
-                                            putExtra("EVENT_ID", event.id)
-                                            putExtra("SELECTED_EVENT_NAME", event.name)
-                                            flags = Intent.FLAG_ACTIVITY_FORWARD_RESULT
-                                        }
-                                        context.startActivity(intent)
-                                        (context as? Activity)?.finish()
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                ) {
-                                    Text("Select Event")
-                                }
                             }
                         }
                     }

@@ -13,9 +13,9 @@ import kotlinx.coroutines.launch
     entities = [
         User::class, Event::class, WasteCategory::class, WasteSubCategory::class,
         LoggingField::class, SubCategoryField::class, Bag::class,
-        ItemPhoto::class // <— NEW
+        ItemPhoto::class, LoggedWaste::class
     ],
-    version = 11, // <— BUMP this (use any number > your current)
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +24,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
     abstract fun wasteDao(): WasteDao
     abstract fun bagDao(): BagDao
+    abstract fun loggedWasteDao(): LoggedWasteDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
