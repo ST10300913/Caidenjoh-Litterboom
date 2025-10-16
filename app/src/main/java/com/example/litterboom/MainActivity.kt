@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -91,10 +90,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -112,6 +109,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.example.litterboom.data.AppDatabase
+import com.example.litterboom.data.CurrentUserManager
 import com.example.litterboom.data.Event
 import com.example.litterboom.data.LoggingField
 import com.example.litterboom.data.SubCategoryField
@@ -120,7 +118,6 @@ import com.example.litterboom.data.WasteCategory
 import com.example.litterboom.data.WasteSubCategory
 import com.example.litterboom.ui.EventSelectionActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
-import com.example.litterboom.data.CurrentUserManager
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
@@ -657,28 +654,6 @@ fun ContactScreen(onBackClick: () -> Unit) {
     }
 }
 
-// placeholder for the other info pages for now
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun InfoPagePlaceholder(screenName: String, onBackClick: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(screenName) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                modifier = Modifier.statusBarsPadding()
-            )
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Content for $screenName page.")
-        }
-    }
-}
 
 @Composable
 fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
@@ -1368,6 +1343,15 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
     var rememberMe by remember { mutableStateOf(false) }
     var loginMessage by remember { mutableStateOf("") }
 
+    LaunchedEffect(loggedIn) {
+        if (!loggedIn) {
+            username = ""
+            password = ""
+            loginMessage = ""
+            rememberMe = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1385,7 +1369,7 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        val headerText = if (loggedIn) "Logged In" else "Login"
+        val headerText = if (CurrentUserManager.isLoggedIn()) "Logged In" else "Login"
 
         if (!isExpanded) {
             Text(
@@ -1446,58 +1430,51 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                 }
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (!isExpanded) {
-                    Text(
-                        "Login",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.pointerInput(Unit) {
-                            detectTapGestures(onTap = { onLoginClick() })
-                        }
-                    )
-                } else {
-                    if (!loggedIn) { //login button
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    if (username.isNotBlank() && password.isNotBlank()) {
-                                        val db = AppDatabase.getDatabase(context)
-                                        val user = db.userDao().getUser(username, password)
-                                        if (user != null) {
-                                            loginMessage = "Login successful as ${user.role}!"
-                                            CurrentUserManager.login(user)
-                                            onLoginSuccess()
-                                            val intent = Intent(context, EventSelectionActivity::class.java) //change to waste worker activity
-                                            context.startActivity(intent)
-                                        } else {
-                                            loginMessage = "Invalid username or password."
+                Button(
+                    onClick = {
+                        scope.launch {
+                            if (username.isNotBlank() && password.isNotBlank()) {
+                                val db = AppDatabase.getDatabase(context)
+                                val user = db.userDao().getUser(username, password)
+                                if (user != null) {
+                                    loginMessage = "Login successful as ${user.role}!"
+                                    CurrentUserManager.login(user)
+                                    onLoginSuccess()
+                                    val intent = Intent(context, EventSelectionActivity::class.java)
+                                    context.startActivity(intent)
+                                } else {
+                                    loginMessage = "Invalid username or password."
 
-                                        }
-                                    } else {
-                                        loginMessage = "Enter username and password."
-                                    }
                                 }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("LOGIN", style = MaterialTheme.typography.labelLarge)
+                            } else {
+                                loginMessage = "Enter username and password."
+                            }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-
-
-                    if (loginMessage.isNotEmpty()) {
-                        Text(
-                            text = loginMessage,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("LOGIN", style = MaterialTheme.typography.labelLarge)
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+
+
+                if (loginMessage.isNotEmpty()) {
+                    Text(
+                        text = loginMessage,
+                        color = if (loginMessage.startsWith("Invalid")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else { // show when the user is already logged in
+                Text(
+                    "You are logged in.",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
