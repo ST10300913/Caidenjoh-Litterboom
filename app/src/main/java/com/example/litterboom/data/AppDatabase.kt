@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
         LoggingField::class, SubCategoryField::class, Bag::class,
         ItemPhoto::class, LoggedWaste::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
