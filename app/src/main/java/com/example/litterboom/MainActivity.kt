@@ -121,6 +121,12 @@ import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material3.Switch
+import com.example.litterboom.data.LoggedWaste
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -205,6 +211,7 @@ fun AppWithNavDrawer() {
                 "Event List" -> EventListScreen(onBackClick = { currentScreen = "Admin Panel" })
                 "Manage Categories" -> ManageCategoriesScreen { currentScreen = "Admin Panel" }
                 "Manage Fields" -> ManageFieldsScreen { currentScreen = "Admin Panel" }
+                "Event Logs" -> EventLogsScreen(onBackClick = { currentScreen = "Admin Panel" })
                 else -> {
                     Box(modifier = Modifier.fillMaxSize().background(Color.LightGray), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -669,14 +676,15 @@ fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
                 onCreateEventClick = { navigateTo("Create Event") },
                 onEventListClick = { navigateTo("Event List") },
                 onManageCategoriesClick = { navigateTo("Manage Categories") },
-                onManageFieldsClick = { navigateTo("Manage Fields") }
+                onManageFieldsClick = { navigateTo("Manage Fields") },
+                onEventLogsClick = { navigateTo("Event Logs") }
             )
         }
     }
 }
 
 @Composable
-fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit) {
+fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit, onEventLogsClick: () -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -689,7 +697,141 @@ fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEven
                 AdminIconButton("Manage Categories", Icons.Default.Category, onManageCategoriesClick)
             }
             Spacer(modifier = Modifier.height(16.dp))
-            AdminIconButton("Manage Fields", Icons.Default.Settings, onManageFieldsClick)
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ){
+                AdminIconButton("Manage Fields", Icons.Default.Settings, onManageFieldsClick)
+                Spacer(modifier = Modifier.width(16.dp))
+                AdminIconButton("Event Data", Icons.Default.Assessment, onClick = onEventLogsClick)
+            }
+        }
+    }
+}
+
+@Composable
+fun EventLogsScreen(onBackClick: () -> Unit) {
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.primary
+                    )
+                )
+            )
+    ) {
+        Crossfade(targetState = selectedEvent, label = "EventLogCrossfade") { event ->
+            if (event == null) {
+                EventSelectionForLogs(
+                    onBackClick = onBackClick,
+                    onEventSelected = { selectedEvent = it }
+                )
+            } else {
+                LoggedWasteDetailScreen(
+                    event = event,
+                    onBack = { selectedEvent = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventSelectionForLogs(onBackClick: () -> Unit, onEventSelected: (Event) -> Unit) {
+    val context = LocalContext.current
+    var events by remember { mutableStateOf<List<Event>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        events = AppDatabase.getDatabase(context).eventDao().getAllEvents()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Select Event to View Logs", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (events.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No events found.", color = Color.White)
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(events) { event ->
+                    Button(
+                        onClick = { onEventSelected(event) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(event.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(event.date))} - ${event.location}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var loggedItems by remember { mutableStateOf<List<Pair<LoggedWaste, User?>>>(emptyList()) }
+
+    LaunchedEffect(event) {
+        val db = AppDatabase.getDatabase(context)
+        val wasteItems = db.loggedWasteDao().getWasteForEvent(event.id)
+        val userWastePairs = wasteItems.map { waste ->
+            val user = db.userDao().getUserById(waste.userId)
+            Pair(waste, user)
+        }
+        loggedItems = userWastePairs
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp).statusBarsPadding().navigationBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Logs for ${event.name}", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (loggedItems.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No waste has been logged for this event yet.", color = Color.White)
+            }
+        } else {
+            LazyColumn {
+                items(loggedItems) { (waste, user) ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("${waste.category} > ${waste.subCategory}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Logged by: ${user?.username ?: "Unknown"}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = try {
+                                    val detailsJson = JSONObject(waste.details)
+                                    detailsJson.keys().asSequence().joinToString("\n") { key ->
+                                        "$key: ${detailsJson.getString(key)}"
+                                    }
+                                } catch (e: Exception) { "No details" },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1539,52 +1681,146 @@ fun EventListScreen(onBackClick: () -> Unit) {
     var startDate by remember { mutableStateOf<Date?>(null) }
     var endDate by remember { mutableStateOf<Date?>(null) }
     val db = AppDatabase.getDatabase(context)
-    LaunchedEffect(Unit) { events = db.eventDao().getAllEvents() }
+
+    fun refreshEvents() {
+        scope.launch {
+            events = AppDatabase.getDatabase(context).eventDao().getAllEvents()
+        }
+    }
+
+    LaunchedEffect(Unit) { refreshEvents() }
     fun showDatePicker(isStartDate: Boolean) {
         val calendar = Calendar.getInstance()
-        android.app.DatePickerDialog(context, { _, year, month, day ->
-            val cal = Calendar.getInstance().apply { set(year, month, day) }
-            if (isStartDate) startDate = cal.time else endDate = cal.time
-            scope.launch {
-                val allEvents = db.eventDao().getAllEvents()
-                events = allEvents.filter { event ->
-                    val afterStartDate = startDate?.let { event.date >= it.time } ?: true
-                    val beforeEndDate = endDate?.let { event.date <= it.time } ?: true
-                    afterStartDate && beforeEndDate
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                val cal = Calendar.getInstance().apply { set(year, month, day) }
+                if (isStartDate) startDate = cal.time else endDate = cal.time
+                scope.launch {
+                    val allEvents = db.eventDao().getAllEvents()
+                    events = allEvents.filter { event ->
+                        val afterStartDate = startDate?.let { event.date >= it.time } ?: true
+                        val beforeEndDate = endDate?.let { event.date <= it.time } ?: true
+                        afterStartDate && beforeEndDate
+                    }
                 }
-            }
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
     }
-    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.secondary,
+                    MaterialTheme.colorScheme.primary
+                )
+            )
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        "Back",
+                        tint = Color.White
+                    )
+                }
                 Spacer(modifier = Modifier.width(16.dp))
-                Text("Event List", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                Text(
+                    "Event List",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showDatePicker(true) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Text(startDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() } ?: "Start Date", color = MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { showDatePicker(true) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Text(startDate?.let {
+                        android.text.format.DateFormat.format("yyyy-MM-dd", it).toString()
+                    } ?: "Start Date", color = MaterialTheme.colorScheme.primary)
                 }
-                Button(onClick = { showDatePicker(false) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Text(endDate?.let { android.text.format.DateFormat.format("yyyy-MM-dd", it).toString() } ?: "End Date", color = MaterialTheme.colorScheme.primary)
+                Button(
+                    onClick = { showDatePicker(false) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Text(endDate?.let {
+                        android.text.format.DateFormat.format("yyyy-MM-dd", it).toString()
+                    } ?: "End Date", color = MaterialTheme.colorScheme.primary)
                 }
-                Button(onClick = {
-                    startDate = null
-                    endDate = null
-                    scope.launch { events = db.eventDao().getAllEvents() }
-                }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Button(
+                    onClick = {
+                        startDate = null
+                        endDate = null
+                        scope.launch { events = db.eventDao().getAllEvents() }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
                     Text("Clear", color = MaterialTheme.colorScheme.primary)
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
             LazyColumn {
                 items(events) { event ->
-                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                        Text(event.name, style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        Text("${android.text.format.DateFormat.format("yyyy-MM-dd", Date(event.date))} - ${event.location}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
-                        Divider(color = Color.White.copy(alpha = 0.3f))
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    event.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "${
+                                        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(
+                                            Date(event.date)
+                                        )
+                                    } - ${event.location}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = if (event.isOpen) "Status: Open" else "Status: Closed",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (event.isOpen) Color(0xFF4CAF50) else Color(
+                                        0xFFF44336
+                                    ) // Green for open, Red for closed
+                                )
+                            }
+                            // Switch to toggle the event status
+                            Switch(
+                                checked = event.isOpen,
+                                onCheckedChange = { isOpen ->
+                                    scope.launch {
+                                        val updatedEvent = event.copy(isOpen = isOpen)
+                                        AppDatabase.getDatabase(context).eventDao()
+                                            .updateEvent(updatedEvent)
+                                        refreshEvents() // Refresh the list to show the change
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }

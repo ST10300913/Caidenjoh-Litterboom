@@ -53,7 +53,7 @@ fun EventSelectionScreen() {
     var events by remember { mutableStateOf<List<Event>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        events = AppDatabase.getDatabase(context).eventDao().getAllEvents()
+        events = AppDatabase.getDatabase(context).eventDao().getOpenEvents()
     }
 
     Box(
@@ -80,7 +80,11 @@ fun EventSelectionScreen() {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                Text("Select an Event to Log For", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                Text("Select an Event to Log For", style = TextStyle(
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                ), color = Color.White)
             }
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -93,12 +97,11 @@ fun EventSelectionScreen() {
                     items(events) { event ->
                         Button(
                             onClick = {
-                                val intent = Intent(context, WasteWorkerActivity::class.java).apply {
-                                    putExtra("SELECTED_EVENT_NAME", event.name)
+                                val intent = Intent(context, BagEntryActivity::class.java).apply {
                                     putExtra("EVENT_ID", event.id)
+                                    putExtra("SELECTED_EVENT_NAME", event.name)
                                 }
                                 context.startActivity(intent)
-                                (context as? Activity)?.finish()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
