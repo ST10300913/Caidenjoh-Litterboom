@@ -1,7 +1,6 @@
 package com.example.litterboom
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -12,7 +11,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
@@ -72,6 +71,7 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -107,11 +107,14 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import com.example.litterboom.data.AppDatabase
 import com.example.litterboom.data.CurrentUserManager
 import com.example.litterboom.data.Event
+import com.example.litterboom.data.LoggedWaste
 import com.example.litterboom.data.LoggingField
+import com.example.litterboom.data.SessionManager
 import com.example.litterboom.data.SubCategoryField
 import com.example.litterboom.data.User
 import com.example.litterboom.data.WasteCategory
@@ -119,13 +122,10 @@ import com.example.litterboom.data.WasteSubCategory
 import com.example.litterboom.ui.EventSelectionActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
-import java.util.Calendar
-import java.util.Date
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material3.Switch
-import com.example.litterboom.data.LoggedWaste
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,6 +158,18 @@ fun AppWithNavDrawer() {
         ).plus(if (loggedIn) listOf("Event Selection", "Logout") else emptyList())
     }
 
+    LaunchedEffect(Unit) {
+        val savedUserId = SessionManager.getSavedUserId(context)
+        if (savedUserId != -1) {
+            val db = AppDatabase.getDatabase(context)
+            val user = db.userDao().getUserById(savedUserId)
+            if (user != null) {
+                CurrentUserManager.login(user)
+                loggedIn = true
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -169,6 +181,7 @@ fun AppWithNavDrawer() {
                     scope.launch { drawerState.close() }
                     when (selectedItem) {
                         "Logout" -> {
+                            SessionManager.clearSession(context)
                             CurrentUserManager.logout()
                             loggedIn = false
                             currentScreen = "Source to Sea"
@@ -824,7 +837,7 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
                                     detailsJson.keys().asSequence().joinToString("\n") { key ->
                                         "$key: ${detailsJson.getString(key)}"
                                     }
-                                } catch (e: Exception) { "No details" },
+                                } catch (_: Exception) { "No details" },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color.White
                             )
@@ -1580,6 +1593,9 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                 val user = db.userDao().getUser(username, password)
                                 if (user != null) {
                                     loginMessage = "Login successful as ${user.role}!"
+                                    if (rememberMe) {
+                                        SessionManager.saveUserSession(context, user)
+                                    }
                                     CurrentUserManager.login(user)
                                     onLoginSuccess()
                                     val intent = Intent(context, EventSelectionActivity::class.java)
@@ -1699,8 +1715,8 @@ fun EventListScreen(onBackClick: () -> Unit) {
                 scope.launch {
                     val allEvents = db.eventDao().getAllEvents()
                     events = allEvents.filter { event ->
-                        val afterStartDate = startDate?.let { event.date >= it.time } ?: true
-                        val beforeEndDate = endDate?.let { event.date <= it.time } ?: true
+                        val afterStartDate = startDate?.let { event.date >= it.time } != false
+                        val beforeEndDate = endDate?.let { event.date <= it.time } != false
                         afterStartDate && beforeEndDate
                     }
                 }
@@ -1854,7 +1870,7 @@ fun ClickableWebsiteText(modifier: Modifier = Modifier) { //clickable text for r
             annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
                 .firstOrNull()?.let {
 
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it.item))
+                    val intent = Intent(Intent.ACTION_VIEW, it.item.toUri())
                     context.startActivity(intent)
                 }
         }
@@ -1963,34 +1979,51 @@ fun ExpandedStateContent() { //background content when login is expanded
             style = MaterialTheme.typography.headlineLarge.copy(fontSize = 20.sp)
         )
         Spacer(modifier = Modifier.height(24.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ImagePlaceholder(modifier = Modifier.size(150.dp))
-            ImagePlaceholder(modifier = Modifier.size(120.dp).align(Alignment.Bottom))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Image 1 (Back Left)
+            Image(
+                painter = painterResource(id = R.drawable.river_cleanup),
+                contentDescription = "Community cleanup",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(180.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.CenterStart)
+
+            )
+            // Image 2 (Top Right)
+            Image(
+                painter = painterResource(id = R.drawable.plastic_bottles),
+                contentDescription = "River cleanup",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(160.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.TopEnd)
+
+            )
+            // Image 3 (Bottom Center)
+            Image(
+                painter = painterResource(id = R.drawable.litterboom_employee),
+                contentDescription = "Collected plastic waste",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (5).dp)
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 
         ClickableWebsiteText()
     }
 }
-
-@Composable
-fun ImagePlaceholder(modifier: Modifier = Modifier) { //image placeholder for login screen
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.Gray.copy(alpha = 0.5f))
-            .border(2.dp, Color.White, RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(id = android.R.drawable.ic_menu_gallery),
-            contentDescription = "Image Placeholder",
-            tint = Color.White.copy(alpha = 0.8f),
-            modifier = Modifier.size(40.dp)
-        )
-    }
-}
-
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
