@@ -1026,113 +1026,269 @@ fun AddUserScreen(onBackClick: () -> Unit) {
     }
 }
 
+// Helper function to capitalise words
+fun String.capitalizeWords(): String = this.split(" ")
+    .joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString() } }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageCategoriesScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val db = AppDatabase.getDatabase(context)
 
     var categories by remember { mutableStateOf<List<WasteCategory>>(emptyList()) }
+    var allFields by remember { mutableStateOf<List<LoggingField>>(emptyList()) }
     var newCategoryName by remember { mutableStateOf("") }
-    var newSubCategoryName by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<WasteCategory?>(null) }
-    var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var expandedCategoryId by remember { mutableStateOf<Int?>(null) }
 
-    fun refreshCategories() {
+    fun refreshAll() {
         scope.launch {
-            categories = AppDatabase.getDatabase(context).wasteDao().getAllCategories()
+            categories = db.wasteDao().getAllCategories() // Gets all active and inactive
+            allFields = db.wasteDao().getAllLoggingFields() // Gets all active and inactive
         }
     }
 
-    LaunchedEffect(Unit) {
-        refreshCategories()
-    }
+    LaunchedEffect(Unit) { refreshAll() }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.secondary,
-                        MaterialTheme.colorScheme.primary
-                    )
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()
-        ) {
+    Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
+                IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("Manage Categories", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Add new Main Category
             Text("Add New Main Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
-            OutlinedTextField(
-                value = newCategoryName,
-                onValueChange = { newCategoryName = it },
-                label = { Text("Category Name") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = {
-                scope.launch {
-                    if (newCategoryName.isNotBlank()) {
-                        AppDatabase.getDatabase(context).wasteDao().insertCategory(WasteCategory(name = newCategoryName))
-                        newCategoryName = ""
-                        refreshCategories()
-                        Toast.makeText(context, "Category Added", Toast.LENGTH_SHORT).show()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newCategoryName,
+                    onValueChange = { newCategoryName = it },
+                    label = { Text("Category Name") },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = {
+                    scope.launch {
+                        val trimmedName = newCategoryName.trim()
+                        if (trimmedName.isNotBlank()) {
+                            if (db.wasteDao().getCategoryByName(trimmedName) == null) {
+                                db.wasteDao().insertCategory(WasteCategory(name = trimmedName.capitalizeWords()))
+                                newCategoryName = ""
+                                refreshAll()
+                                Toast.makeText(context, "Category Added", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Category '$trimmedName' already exists", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
-                }
-            }) {
-                Text("Add Category")
+                }) { Text("Add") }
             }
 
             Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
 
-            // Add new Sub-Category
-            Text("Add New Sub-Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
-            ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = !categoryMenuExpanded }) {
+            Text("Existing Categories", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(categories) { category ->
+                    CategoryItem(
+                        category = category,
+                        allFields = allFields,
+                        isExpanded = expandedCategoryId == category.id,
+                        onExpand = { expandedCategoryId = if (expandedCategoryId == category.id) null else category.id },
+                        onStatusChange = {
+                            scope.launch {
+                                db.wasteDao().updateCategory(category.copy(isActive = it))
+                                refreshAll()
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Helper for the Category List
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CategoryItem(
+    category: WasteCategory,
+    allFields: List<LoggingField>,
+    isExpanded: Boolean,
+    onExpand: () -> Unit,
+    onStatusChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val db = AppDatabase.getDatabase(context)
+
+    var subCategories by remember { mutableStateOf<List<WasteSubCategory>>(emptyList()) }
+    var newSubCategoryName by remember { mutableStateOf("") }
+    val textColor = if (category.isActive) Color.White else Color.Gray
+
+    fun refreshSubCategories() {
+        scope.launch {
+            subCategories = db.wasteDao().getSubCategoriesForCategory(category.id)
+        }
+    }
+
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
+            refreshSubCategories()
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f)),
+        onClick = onExpand
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(category.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
+                    if (!category.isActive) {
+                        Text("(Archived)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                }
+                Switch(checked = category.isActive, onCheckedChange = onStatusChange)
+            }
+
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Sub-Categories:", style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
+
+                subCategories.forEach { subCategory ->
+                    SubCategoryItem(
+                        subCategory = subCategory,
+                        allFields = allFields.filter { it.isActive }, // Only show active fields
+                        onStatusChange = {
+                            scope.launch {
+                                db.wasteDao().updateSubCategory(subCategory.copy(isActive = it))
+                                refreshSubCategories()
+                            }
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newSubCategoryName,
+                        onValueChange = { newSubCategoryName = it },
+                        label = { Text("New Sub-Category Name") },
+                        modifier = Modifier.weight(1f),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = {
+                        scope.launch {
+                            val trimmedName = newSubCategoryName.trim()
+                            if (trimmedName.isNotBlank()) {
+                                if (db.wasteDao().getSubCategoryByName(trimmedName, category.id) == null) {
+                                    db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id))
+                                    newSubCategoryName = ""
+                                    refreshSubCategories()
+                                    Toast.makeText(context, "Sub-Category Added", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "This sub-category already exists", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }) { Text("Add") }
+                }
+            }
+        }
+    }
+}
+
+// Helper for the Category Item
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SubCategoryItem(
+    subCategory: WasteSubCategory,
+    allFields: List<LoggingField>,
+    onStatusChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val db = AppDatabase.getDatabase(context)
+
+    var assignedFields by remember { mutableStateOf<List<LoggingField>>(emptyList()) }
+    var selectedField by remember { mutableStateOf<LoggingField?>(null) }
+    var fieldMenuExpanded by remember { mutableStateOf(false) }
+    val textColor = if (subCategory.isActive) Color.White else Color.Gray
+
+    fun refreshAssignedFields() {
+        scope.launch {
+            assignedFields = db.wasteDao().getFieldsForSubCategory(subCategory.id)
+        }
+    }
+
+    LaunchedEffect(Unit) { refreshAssignedFields() }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.2f))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(subCategory.name, style = MaterialTheme.typography.titleMedium, color = textColor)
+                    if (!subCategory.isActive) {
+                        Text("(Archived)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                }
+                Switch(checked = subCategory.isActive, onCheckedChange = onStatusChange)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Assigned Fields:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.8f))
+
+            if (assignedFields.isEmpty()) {
+                Text("No fields assigned.", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f))
+            } else {
+                assignedFields.forEach { field ->
+                    Text("• ${field.fieldName}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            ExposedDropdownMenuBox(expanded = fieldMenuExpanded, onExpandedChange = { fieldMenuExpanded = !fieldMenuExpanded }) {
                 OutlinedTextField(
-                    value = selectedCategory?.name ?: "Select Category",
+                    value = selectedField?.fieldName ?: "Select Field to Assign",
                     onValueChange = {},
                     readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fieldMenuExpanded) },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
                     colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
                 )
-                ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
-                    categories.forEach { category ->
-                        DropdownMenuItem(text = { Text(category.name) }, onClick = { selectedCategory = category; categoryMenuExpanded = false })
+                ExposedDropdownMenu(expanded = fieldMenuExpanded, onDismissRequest = { fieldMenuExpanded = false }) {
+                    allFields.forEach { field ->
+                        DropdownMenuItem(text = { Text(field.fieldName) }, onClick = { selectedField = field; fieldMenuExpanded = false })
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(
-                value = newSubCategoryName,
-                onValueChange = { newSubCategoryName = it },
-                label = { Text("Sub-Category Name") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
-            )
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = {
                 scope.launch {
-                    if (newSubCategoryName.isNotBlank() && selectedCategory != null) {
-                        AppDatabase.getDatabase(context).wasteDao().insertSubCategory(WasteSubCategory(name = newSubCategoryName, categoryId = selectedCategory!!.id))
-                        newSubCategoryName = ""
-                        Toast.makeText(context, "Sub-Category Added", Toast.LENGTH_SHORT).show()
+                    if (selectedField != null) {
+                        val isAssigned = db.wasteDao().isFieldAssignedToSubCategory(subCategory.id, selectedField!!.id) > 0
+                        if (!isAssigned) {
+                            db.wasteDao().assignFieldToSubCategory(SubCategoryField(subCategoryId = subCategory.id, fieldId = selectedField!!.id))
+                            refreshAssignedFields()
+                            Toast.makeText(context, "Field Assigned", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Field already assigned", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "Please select a field", Toast.LENGTH_SHORT).show()
                     }
                 }
             }) {
-                Text("Add Sub-Category")
+                Text("Assign Field")
             }
         }
     }
@@ -1143,97 +1299,95 @@ fun ManageCategoriesScreen(onBackClick: () -> Unit) {
 fun ManageFieldsScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val db = AppDatabase.getDatabase(context)
 
-    // State for creating new fields
+    var fields by remember { mutableStateOf<List<LoggingField>>(emptyList()) }
     var newFieldName by remember { mutableStateOf("") }
 
-    // State for assigning fields
-    var allSubCategories by remember { mutableStateOf<List<WasteSubCategory>>(emptyList()) }
-    var allFields by remember { mutableStateOf<List<LoggingField>>(emptyList()) }
-    var selectedSubCategory by remember { mutableStateOf<WasteSubCategory?>(null) }
-    var selectedField by remember { mutableStateOf<LoggingField?>(null) }
-    var subCategoryMenuExpanded by remember { mutableStateOf(false) }
-    var fieldMenuExpanded by remember { mutableStateOf(false) }
-
-    fun refreshData() {
+    fun refreshFields() {
         scope.launch {
-            val db = AppDatabase.getDatabase(context)
-
-            val categories = db.wasteDao().getAllCategories()
-            allSubCategories = categories.flatMap { db.wasteDao().getSubCategoriesForCategory(it.id) }
-            allFields = db.wasteDao().getAllLoggingFields()
+            fields = db.wasteDao().getAllLoggingFields()
         }
     }
 
-    LaunchedEffect(Unit) {
-        refreshData()
-    }
+    LaunchedEffect(Unit) { refreshFields() }
 
     Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                 Spacer(modifier = Modifier.width(16.dp))
-                Text("Manage Logging Fields", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                Text("Manage Field Types", style = MaterialTheme.typography.headlineLarge, color = Color.White)
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Section to create a new field type
             Text("Create New Field Type", style = MaterialTheme.typography.titleMedium, color = Color.White)
-            OutlinedTextField(value = newFieldName, onValueChange = { newFieldName = it }, label = { Text("Field Name (e.g., Colour)") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = {
-                scope.launch {
-                    if (newFieldName.isNotBlank()) {
-                        AppDatabase.getDatabase(context).wasteDao().insertLoggingField(LoggingField(fieldName = newFieldName))
-                        newFieldName = ""
-                        refreshData()
-                        Toast.makeText(context, "Field Created", Toast.LENGTH_SHORT).show()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newFieldName,
+                    onValueChange = { newFieldName = it },
+                    label = { Text("Field Name (e.g., Colour)") },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f))
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = {
+                    scope.launch {
+                        val trimmedName = newFieldName.trim()
+                        if (trimmedName.isNotBlank()) {
+                            if (db.wasteDao().getFieldByName(trimmedName) == null) {
+                                db.wasteDao().insertLoggingField(LoggingField(fieldName = trimmedName.capitalizeWords()))
+                                newFieldName = ""
+                                refreshFields()
+                                Toast.makeText(context, "Field Created", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Field '$trimmedName' already exists", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
-                }
-            }) {
-                Text("Create Field")
+                }) { Text("Create") }
             }
 
             Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
 
-            // Section to assign a field to a sub-category
-            Text("Assign Field to Sub-Category", style = MaterialTheme.typography.titleMedium, color = Color.White)
-
-            // Sub-category dropdown
-            ExposedDropdownMenuBox(expanded = subCategoryMenuExpanded, onExpandedChange = { subCategoryMenuExpanded = !subCategoryMenuExpanded }) {
-                OutlinedTextField(value = selectedSubCategory?.name ?: "Select Sub-Category", onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subCategoryMenuExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
-                ExposedDropdownMenu(expanded = subCategoryMenuExpanded, onDismissRequest = { subCategoryMenuExpanded = false }) {
-                    allSubCategories.forEach { subCategory ->
-                        DropdownMenuItem(text = { Text(subCategory.name) }, onClick = { selectedSubCategory = subCategory; subCategoryMenuExpanded = false })
+            Text("Existing Field Types", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(fields) { field ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = field.fieldName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (field.isActive) Color.White else Color.Gray
+                                )
+                                if (!field.isActive) {
+                                    Text("(Archived)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                }
+                            }
+                            Switch(
+                                checked = field.isActive,
+                                onCheckedChange = {
+                                    scope.launch {
+                                        db.wasteDao().updateField(field.copy(isActive = it))
+                                        refreshFields()
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Field dropdown
-            ExposedDropdownMenuBox(expanded = fieldMenuExpanded, onExpandedChange = { fieldMenuExpanded = !fieldMenuExpanded }) {
-                OutlinedTextField(value = selectedField?.fieldName ?: "Select Field", onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fieldMenuExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
-                ExposedDropdownMenu(expanded = fieldMenuExpanded, onDismissRequest = { fieldMenuExpanded = false }) {
-                    allFields.forEach { field ->
-                        DropdownMenuItem(text = { Text(field.fieldName) }, onClick = { selectedField = field; fieldMenuExpanded = false })
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = {
-                scope.launch {
-                    if (selectedSubCategory != null && selectedField != null) {
-                        AppDatabase.getDatabase(context).wasteDao().assignFieldToSubCategory(SubCategoryField(subCategoryId = selectedSubCategory!!.id, fieldId = selectedField!!.id))
-                        Toast.makeText(context, "Field Assigned", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }) {
-                Text("Assign Field")
             }
         }
     }
 }
+
 /*@Composable
 fun AdminControlPanelScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Unit) {
     val context = LocalContext.current
