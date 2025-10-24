@@ -1,12 +1,8 @@
 package com.example.litterboom.data
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-
-@Entity(tableName = "users")
 data class User(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val username: String,
-    val password: String,
-    val role: String = "User" //default
+    val id: Int = 0,              // Kept for compatibility (not used by Firebase)
+    val username: String,         // Treat as email for Firebase Auth
+    val password: String,         // Only used when creating/signing-in (not stored in Firestore)
+    val role: String = "User"
 )
