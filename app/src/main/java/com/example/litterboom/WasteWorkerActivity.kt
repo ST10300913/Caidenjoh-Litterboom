@@ -71,6 +71,13 @@ import com.example.litterboom.data.LoggedWaste
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.jvm.java
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.text.TextStyle
 
 class WasteWorkerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,7 +109,6 @@ fun WasteWorkerScreen(eventName: String, eventId: Int) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Image(painterResource(R.drawable.litterboom_logo__2_), "Litterboom Logo", modifier = Modifier.height(40.dp)) },
-                navigationIcon = { IconButton(onClick = { /* Handle Menu Click */ }) { Icon(Icons.Default.Menu, "Menu") } },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.statusBarsPadding()
             )
@@ -115,12 +121,35 @@ fun WasteWorkerScreen(eventName: String, eventId: Int) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventId: Int) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentSessionEntries = remember { mutableStateListOf<LoggedEntry>() }
     var entryToDelete by remember { mutableStateOf<LoggedEntry?>(null) }
+
+    // State for the filter dropdown
+    var selectedCategoryFilter by remember { mutableStateOf("All Categories") }
+    var filterMenuExpanded by remember { mutableStateOf(false) }
+
+    // Get a unique list of categories from the logged items
+    val categoriesInUse by remember {
+        derivedStateOf {
+            listOf("All Categories") + currentSessionEntries.map { it.category }.distinct().sorted()
+        }
+    }
+
+    // final filtered list to be displayed
+    val filteredEntries by remember {
+        derivedStateOf {
+            if (selectedCategoryFilter == "All Categories") {
+                currentSessionEntries
+            } else {
+                currentSessionEntries.filter { it.category == selectedCategoryFilter }
+            }
+        }
+    }
 
     // Fetch previously logged data for this event
     LaunchedEffect(eventId) {
@@ -198,6 +227,47 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventI
         Text("Logging for: $eventName", style = MaterialTheme.typography.titleMedium, color = Color.White)
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Filter dropdown
+        ExposedDropdownMenuBox(
+            expanded = filterMenuExpanded,
+            onExpandedChange = { filterMenuExpanded = !filterMenuExpanded },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            OutlinedTextField(
+                value = selectedCategoryFilter,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Filter by Category") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = filterMenuExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = MaterialTheme.colorScheme.primary,
+                    unfocusedTextColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(12.dp),
+                textStyle = TextStyle(fontWeight = FontWeight.Bold)
+            )
+            ExposedDropdownMenu(
+                expanded = filterMenuExpanded,
+                onDismissRequest = { filterMenuExpanded = false }
+            ) {
+                categoriesInUse.forEach { category ->
+                    DropdownMenuItem(
+                        text = { Text(category) },
+                        onClick = {
+                            selectedCategoryFilter = category
+                            filterMenuExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
         Column(modifier = Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface)) {
             Row(
                 modifier = Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.3f))
@@ -218,13 +288,19 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventI
                 )
             }
 
+            // Empty State
             if (currentSessionEntries.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No items logged for this event yet.", color = Color.Gray)
+                    Text("No items logged for this event yet.", color = Color.Gray, modifier = Modifier.padding(16.dp), textAlign = TextAlign.Center)
+                }
+            } else if (filteredEntries.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No items found for '$selectedCategoryFilter'.", color = Color.Gray, modifier = Modifier.padding(16.dp), textAlign = TextAlign.Center)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(currentSessionEntries) { entry ->
+
+                    items(filteredEntries) { entry ->
                         Row(
                             modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
