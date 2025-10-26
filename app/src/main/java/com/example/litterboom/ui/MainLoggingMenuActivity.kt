@@ -154,8 +154,23 @@ fun SubCategoryList(
     val scope = rememberCoroutineScope()
     var subCategories by remember { mutableStateOf<List<WasteSubCategory>>(emptyList()) }
 
+    // Add state for filter text
+    var filterText by remember { mutableStateOf("") }
+
     LaunchedEffect(category) {
-        subCategories = AppDatabase.getDatabase(context).wasteDao().getSubCategoriesForCategory(category.id)
+        // Fetch only active sub-categories for logging
+        subCategories = AppDatabase.getDatabase(context).wasteDao().getActiveSubCategoriesForCategory(category.id)
+    }
+
+    // Create the filtered list
+    val filteredSubCategories = remember(filterText, subCategories) {
+        if (filterText.isBlank()) {
+            subCategories
+        } else {
+            subCategories.filter {
+                it.name.contains(filterText, ignoreCase = true)
+            }
+        }
     }
 
     Scaffold(
@@ -171,21 +186,44 @@ fun SubCategoryList(
         },
         containerColor = Color.Transparent
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding).fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        // Column to hold the filter and the list
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
         ) {
-            items(subCategories) { item ->
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val requiredFields = AppDatabase.getDatabase(context).wasteDao().getFieldsForSubCategory(item.id)
-                            onSubCategorySelected(item, requiredFields.isNotEmpty())
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(text = item.name) }
+
+            OutlinedTextField(
+                value = filterText,
+                onValueChange = { filterText = it },
+                label = { Text("Filter a sub-category?") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                singleLine = true
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Use the filtered list
+                items(filteredSubCategories) { item ->
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val requiredFields = AppDatabase.getDatabase(context).wasteDao().getFieldsForSubCategory(item.id)
+                                onSubCategorySelected(item, requiredFields.isNotEmpty())
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(text = item.name) }
+                }
             }
         }
     }

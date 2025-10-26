@@ -1,10 +1,13 @@
 package com.example.litterboom
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
@@ -123,6 +126,11 @@ import com.example.litterboom.data.WasteCategory
 import com.example.litterboom.data.WasteSubCategory
 import com.example.litterboom.ui.EventSelectionActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.widget.Autocomplete
+import com.google.android.libraries.places.widget.AutocompleteActivity
+import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.DecimalFormat
@@ -130,16 +138,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import com.google.android.libraries.places.api.Places
-import com.google.android.libraries.places.api.model.Place
-import com.google.android.libraries.places.widget.Autocomplete
-import com.google.android.libraries.places.widget.AutocompleteActivity
-import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
+import androidx.compose.material.icons.filled.Share
+import java.io.OutputStreamWriter
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -149,7 +150,7 @@ class MainActivity : ComponentActivity() {
         try {
             if (!Places.isInitialized()) {
                 // Access the key safely from the generated BuildConfig
-                val apiKey = com.example.litterboom.BuildConfig.MAPS_API_KEY
+                val apiKey = BuildConfig.MAPS_API_KEY
                 if (apiKey.isEmpty() || apiKey == "YOUR_API_KEY_HERE") {
                     Toast.makeText(this, "API Key not set in local.properties.", Toast.LENGTH_LONG).show()
                 }
@@ -987,23 +988,131 @@ private fun EventSelectionForLogs(onBackClick: () -> Unit, onEventSelected: (Eve
 @Composable
 private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val db = remember { AppDatabase.getDatabase(context) }
     var loggedItems by remember { mutableStateOf<List<Pair<LoggedWaste, User?>>>(emptyList()) }
+    var bagItems by remember { mutableStateOf<List<Bag>>(emptyList()) }
 
+    // Launch a coroutine to fetch logged waste items
+    val fileSaverLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        // This is the callback for when the user selects a save location
+        uri?.let { saveUri ->
+            scope.launch {
+                try {
+                    val csvContent = StringBuilder()
+
+                    csvContent.append("\uFEFF")
+
+                    // Group all logged items by their Main Category
+                    val groupedByCategory = loggedItems.groupBy { it.first.category }
+
+                    //  Iterate over each Main Category group to build a table per main category
+                    groupedByCategory.forEach { (mainCategory, itemsInCategory) ->
+
+                        // Write the Main Category as a title
+                        csvContent.append("Category:;").append(escapeCsvField(mainCategory)).append("\r\n")
+
+                        // Find all unique dynamic fields for THIS category only
+                        val detailKeysForThisCategory = mutableSetOf<String>()
+                        itemsInCategory.forEach { (waste, _) ->
+                            try {
+                                val detailsJson = JSONObject(waste.details)
+                                detailsJson.keys().forEach { key -> detailKeysForThisCategory.add(key) }
+                            } catch (_: Exception) { /* ignore bad json */ }
+                        }
+                        val sortedDetailKeys = detailKeysForThisCategory.sorted()
+
+                        // Build the Header Row for this table
+                        val headers = listOf("Sub-Category") + sortedDetailKeys
+                        csvContent.append(headers.joinToString(";") { escapeCsvField(it) }).append("\r\n")
+
+                        // Build the Data Rows for this table
+                        itemsInCategory.forEach { (waste, _) ->
+                            val row = mutableListOf<String>()
+                            row.add(escapeCsvField(waste.subCategory))
+
+                            val detailsJson = try { JSONObject(waste.details) } catch (e: Exception) { JSONObject() }
+                            sortedDetailKeys.forEach { key ->
+                                row.add(escapeCsvField(detailsJson.optString(key, "")))
+                            }
+                            csvContent.append(row.joinToString(";")).append("\r\n")
+                        }
+
+                        // Add spacing between tables
+                        csvContent.append("\r\n\r\n")
+                    }
+
+                    csvContent.append("Bag Log Summary\r\n") // Title for the bag table
+                    csvContent.append("Bag Number;Weight (Kg)\r\n") // Headers
+
+                    // Sort bags by number
+                    val sortedBags = bagItems.sortedBy { it.bagNumber }
+
+                    // Loop and add each bag as a row
+                    sortedBags.forEach { bag ->
+                        val bagRow = listOf(
+                            bag.bagNumber.toString(),
+                            // Format the weight to 2 decimal places
+                            DecimalFormat("#,##0.00").format(bag.weight)
+                        )
+                        csvContent.append(bagRow.joinToString(";") { escapeCsvField(it) }).append("\r\n")
+                    }
+
+                    // Add a blank line for spacing
+                    csvContent.append("\r\n")
+
+                    // Now add the totals at the end of the bag list
+                    val totalBags = bagItems.size
+                    val totalWeight = bagItems.sumOf { it.weight }
+                    val totalWeightFormatted = DecimalFormat("#,##0.00").format(totalWeight)
+
+                    csvContent.append("Event Summary\r\n")
+                    csvContent.append("Total Bags;${totalBags}\r\n")
+                    csvContent.append("Total Weight (Kg);${totalWeightFormatted}\r\n")
+
+
+                    // Write the file
+                    context.contentResolver.openOutputStream(saveUri)?.use { outputStream ->
+                        OutputStreamWriter(outputStream).use { writer ->
+                            writer.write(csvContent.toString())
+                        }
+                    }
+                    Toast.makeText(context, "Export successful!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(context, "Error exporting file: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // This data-fetching logic is unchanged
     LaunchedEffect(event) {
-        val db = AppDatabase.getDatabase(context)
         val wasteItems = db.loggedWasteDao().getWasteForEvent(event.id)
         val userWastePairs = wasteItems.map { waste ->
-            val user = db.userDao().getUserById(waste.userId)
+            val user = db.userDao().getUserById(waste.userId) // Uses Int ID
             Pair(waste, user)
         }
         loggedItems = userWastePairs
+        bagItems = db.bagDao().getBagsByEvent(event.id)
     }
 
+    // The UI layout is unchanged
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).statusBarsPadding().navigationBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Logs for ${event.name}", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+            Text("Logs for ${event.name}", style = MaterialTheme.typography.headlineMedium, color = Color.White, modifier = Modifier.weight(1f))
+
+            IconButton(onClick = {
+                val simpleDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(event.date))
+                val fileName = "${event.name.replace(" ", "_")}_${simpleDate}_export.csv"
+                fileSaverLauncher.launch(fileName)
+            }) {
+                Icon(Icons.Default.Share, "Export Data", tint = Color.White)
+            }
         }
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1241,6 +1350,15 @@ fun ManageCategoriesScreen(onBackClick: () -> Unit) {
 
     LaunchedEffect(Unit) { refreshAll() }
 
+    LaunchedEffect(Unit) {
+        scope.launch {
+            val weightField = db.wasteDao().getFieldByName("Weight (kg)")
+            if (weightField == null) {
+                db.wasteDao().insertLoggingField(LoggingField(fieldName = "Weight (kg)", isActive = true))
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1279,7 +1397,7 @@ fun ManageCategoriesScreen(onBackClick: () -> Unit) {
 
             Divider(modifier = Modifier.padding(vertical = 24.dp), color = Color.White.copy(alpha = 0.5f))
 
-            Text("Existing Categories", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Text("Existing Main Categories", style = MaterialTheme.typography.titleMedium, color = Color.White)
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(categories) { category ->
                     CategoryItem(
@@ -1350,18 +1468,7 @@ fun CategoryItem(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Sub-Categories:", style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
 
-                subCategories.forEach { subCategory ->
-                    SubCategoryItem(
-                        subCategory = subCategory,
-                        allFields = allFields.filter { it.isActive }, // Only show active fields
-                        onStatusChange = {
-                            scope.launch {
-                                db.wasteDao().updateSubCategory(subCategory.copy(isActive = it))
-                                refreshSubCategories()
-                            }
-                        }
-                    )
-                }
+
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1378,7 +1485,16 @@ fun CategoryItem(
                             val trimmedName = newSubCategoryName.trim()
                             if (trimmedName.isNotBlank()) {
                                 if (db.wasteDao().getSubCategoryByName(trimmedName, category.id) == null) {
-                                    db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id))
+                                    val newSubId = db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id))
+
+                                    val weightField = db.wasteDao().getFieldByName("Weight (kg)")
+
+                                    if (weightField != null) {
+                                        db.wasteDao().assignFieldToSubCategory(
+                                            SubCategoryField(subCategoryId = newSubId.toInt(), fieldId = weightField.id)
+                                        )
+                                    }
+
                                     newSubCategoryName = ""
                                     refreshSubCategories()
                                     Toast.makeText(context, "Sub-Category Added", Toast.LENGTH_SHORT).show()
@@ -1388,6 +1504,18 @@ fun CategoryItem(
                             }
                         }
                     }) { Text("Add") }
+                }
+                subCategories.forEach { subCategory ->
+                    SubCategoryItem(
+                        subCategory = subCategory,
+                        allFields = allFields.filter { it.isActive }, // Only show active fields
+                        onStatusChange = {
+                            scope.launch {
+                                db.wasteDao().updateSubCategory(subCategory.copy(isActive = it))
+                                refreshSubCategories()
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -2416,6 +2544,16 @@ fun ExpandedStateContent() { //background content when login is expanded
         Spacer(modifier = Modifier.height(16.dp))
 
         ClickableWebsiteText()
+    }
+}
+
+private fun escapeCsvField(field: String): String {
+    // Check for the delimiter (semicolon) or quotes
+    return if (field.contains(";") || field.contains("\"")) {
+        // Wrap in quotes and double-up existing quotes
+        "\"${field.replace("\"", "\"\"")}\""
+    } else {
+        field // No escaping needed
     }
 }
 

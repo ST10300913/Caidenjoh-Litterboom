@@ -57,6 +57,9 @@ import com.example.litterboom.ui.theme.LightTeal
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import java.util.Locale
 
 class FieldLoggingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,16 +138,45 @@ fun FieldLoggingScreen(subCategoryId: Int, subCategoryName: String, mainCategory
             Spacer(Modifier.height(16.dp))
 
             LazyColumn(modifier = Modifier.weight(1f)) {
-                // 1) admin-defined fields
+
                 items(requiredFields) { field ->
+                    // Check for numeric fields
+                    val isNumericField = field.fieldName.contains("weight", ignoreCase = true) ||
+                            field.fieldName.contains("kg", ignoreCase = true)
+
+                    val keyboardType = if (isNumericField) {
+                        KeyboardType.Decimal
+                    } else {
+                        KeyboardType.Text
+                    }
+
+                    // Regex to allow only numbers and at most one decimal point
+                    val decimalRegex = remember { Regex("^\\d*\\.?\\d*\$") }
+
                     OutlinedTextField(
                         value = fieldInputValues[field.id] ?: "",
-                        onValueChange = { fieldInputValues[field.id] = it },
+                        onValueChange = { newValue ->
+                            if (isNumericField) {
+                                // For numeric fields, only accept valid decimal input
+                                if (newValue.isEmpty() || newValue.matches(decimalRegex)) {
+                                    fieldInputValues[field.id] = newValue
+                                }
+                            } else {
+                                // For text fields, apply the auto-formatting
+                                fieldInputValues[field.id] = formatToTitleCase(newValue)
+                            }
+                        },
                         label = { Text(field.fieldName, style = MaterialTheme.typography.labelLarge) },
                         textStyle = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp),
+
+
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+
+
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = Color.White.copy(alpha = 0.98f),
                             unfocusedContainerColor = Color.White.copy(alpha = 0.95f),
@@ -222,3 +254,14 @@ fun FieldLoggingScreen(subCategoryId: Int, subCategoryName: String, mainCategory
             }
         }
     }
+
+private fun formatToTitleCase(input: String): String {
+    return input.split(" ").joinToString(" ") { word ->
+        if (word.isNotEmpty()) {
+            // Capitalise first letter, lowercase the rest
+            word.first().uppercase() + word.drop(1).lowercase()
+        } else {
+            "" // Handle potential multiple spaces
+        }
+    }
+}
