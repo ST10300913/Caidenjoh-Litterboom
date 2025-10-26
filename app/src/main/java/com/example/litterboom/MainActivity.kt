@@ -36,13 +36,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
@@ -122,28 +121,43 @@ import com.example.litterboom.data.SubCategoryField
 import com.example.litterboom.data.User
 import com.example.litterboom.data.WasteCategory
 import com.example.litterboom.data.WasteSubCategory
-import com.example.litterboom.data.firebase.FirebaseModule
-import com.example.litterboom.data.firebase.FirestoreBagDao
-import com.example.litterboom.data.firebase.FirestoreEventDao
-import com.example.litterboom.data.firebase.FirestoreUserDao
 import com.example.litterboom.ui.EventSelectionActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Inventory
-import java.text.DecimalFormat
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.widget.Autocomplete
+import com.google.android.libraries.places.widget.AutocompleteActivity
+import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-
+        try {
+            if (!Places.isInitialized()) {
+                val apiKey = "AIzaSyDO58-xeFOVUtdHSEQbuNr0HtwvPvBdUZM"
+                if (apiKey == "AIzaSyDO58-xeFOVUtdHSEQbuNr0HtwvPvBdUZM") {
+                    Toast.makeText(this, "API Key not set for Places SDK.", Toast.LENGTH_LONG).show()
+                }
+                Places.initialize(applicationContext, apiKey)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error initializing Places SDK: ${e.message}", Toast.LENGTH_LONG).show()
+        }
         AppDatabase.getDatabase(this)
 
         setContent {
@@ -1971,14 +1985,39 @@ fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var eventName by remember { mutableStateOf("") }
+
     var eventDate by remember { mutableStateOf(Calendar.getInstance().time) }
-    var eventLocation by remember { mutableStateOf("") }
     val calendar = Calendar.getInstance()
     calendar.time = eventDate
     val datePickerDialog = android.app.DatePickerDialog(context, { _, year, month, dayOfMonth ->
         calendar.set(year, month, dayOfMonth)
         eventDate = calendar.time
     }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+
+    var eventLocation by remember { mutableStateOf("") }
+    val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
+    val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.OVERLAY, placeFields)
+        .setCountries(listOf("ZA"))
+        .build(context)
+    val autocompleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        when (result.resultCode) {
+            Activity.RESULT_OK -> {
+                val place = result.data?.let { Autocomplete.getPlaceFromIntent(it) }
+                // Update state with the result
+                eventLocation = place?.address ?: ""
+            }
+            AutocompleteActivity.RESULT_ERROR -> {
+                val status = result.data?.let { Autocomplete.getStatusFromIntent(it) }
+                Toast.makeText(context, "Error: ${status?.statusMessage}", Toast.LENGTH_SHORT).show()
+            }
+            Activity.RESULT_CANCELED -> {
+                // User canceled the operation
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1989,7 +2028,32 @@ fun CreateEventScreen(onEventCreated: (Event) -> Unit, onBackClick: () -> Unit) 
             Spacer(modifier = Modifier.height(32.dp))
             OutlinedTextField(value = eventName, onValueChange = { eventName = it }, label = { Text("Event Name") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(value = eventLocation, onValueChange = { eventLocation = it }, label = { Text("Event Location") }, modifier = Modifier.fillMaxWidth(), colors = TextFieldDefaults.outlinedTextFieldColors(containerColor = Color.White.copy(alpha = 0.9f)))
+            OutlinedTextField(
+                value = eventLocation,
+                onValueChange = { }, // Read-only
+                label = { Text("Event Location") },
+                placeholder = { Text("Click to search location") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            // Launch the autocomplete activity
+                            autocompleteLauncher.launch(intent)
+                        })
+                    },
+                readOnly = true,
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = Color.White.copy(alpha = 0.9f),
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurface,
+                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurface
+                ),
+                enabled = false, // Use disabled state to make it look non-editable
+                trailingIcon = {
+                    Icon(Icons.Default.LocationOn, "Search Location")
+                }
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = { datePickerDialog.show() }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Text("Date: ${android.text.format.DateFormat.format("yyyy-MM-dd", eventDate)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
