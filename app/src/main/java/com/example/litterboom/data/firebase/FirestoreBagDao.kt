@@ -45,4 +45,13 @@ class FirestoreBagDao : BagDao {
         val snap = col.whereEqualTo("eventId", eventId).whereEqualTo("isApproved", true).limit(1).get().await()
         return !snap.isEmpty
     }
+
+    override suspend fun getApprovedBagsForEvent(eventId: Int): List<Bag> {
+        val snapshot = col
+            .whereEqualTo("eventId", eventId)
+            .whereEqualTo("status", "Approved") // Filter for approved bags
+            .get()
+            .await()
+        return snapshot.toObjects(Bag::class.java)
+    }
 }

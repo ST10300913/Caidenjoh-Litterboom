@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.litterboom" />
+                  <option name="mobileSdkAppId" value="1:1061275540837:android:3ba7159909e8e411cdd58c" />
+                  <option name="projectId" value="litterboomapp" />
+                  <option name="projectNumber" value="1061275540837" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
