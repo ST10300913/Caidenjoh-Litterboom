@@ -36,11 +36,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
@@ -110,6 +112,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import com.example.litterboom.data.AppDatabase
+import com.example.litterboom.data.Bag
 import com.example.litterboom.data.CurrentUserManager
 import com.example.litterboom.data.Event
 import com.example.litterboom.data.LoggedWaste
@@ -119,6 +122,10 @@ import com.example.litterboom.data.SubCategoryField
 import com.example.litterboom.data.User
 import com.example.litterboom.data.WasteCategory
 import com.example.litterboom.data.WasteSubCategory
+import com.example.litterboom.data.firebase.FirebaseModule
+import com.example.litterboom.data.firebase.FirestoreBagDao
+import com.example.litterboom.data.firebase.FirestoreEventDao
+import com.example.litterboom.data.firebase.FirestoreUserDao
 import com.example.litterboom.ui.EventSelectionActivity
 import com.example.litterboom.ui.theme.LitterboomTheme
 import kotlinx.coroutines.launch
@@ -127,6 +134,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Inventory
+import java.text.DecimalFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -224,6 +234,7 @@ fun AppWithNavDrawer() {
                 "Event List" -> EventListScreen(onBackClick = { currentScreen = "Admin Panel" })
                 "Manage Categories" -> ManageCategoriesScreen { currentScreen = "Admin Panel" }
                 "Manage Fields" -> ManageFieldsScreen { currentScreen = "Admin Panel" }
+                "Bag Logs" -> AdminBagLogScreen(onBackClick = { currentScreen = "Admin Panel" })
                 "Event Logs" -> EventLogsScreen(onBackClick = { currentScreen = "Admin Panel" })
                 else -> {
                     Box(modifier = Modifier.fillMaxSize().background(Color.LightGray), contentAlignment = Alignment.Center) {
@@ -690,14 +701,15 @@ fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
                 onEventListClick = { navigateTo("Event List") },
                 onManageCategoriesClick = { navigateTo("Manage Categories") },
                 onManageFieldsClick = { navigateTo("Manage Fields") },
-                onEventLogsClick = { navigateTo("Event Logs") }
+                onEventLogsClick = { navigateTo("Event Logs") },
+                onBagLogClick = { navigateTo("Bag Logs") }
             )
         }
     }
 }
 
 @Composable
-fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit, onEventLogsClick: () -> Unit) {
+fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit, onEventLogsClick: () -> Unit, onBagLogClick: () -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -717,6 +729,167 @@ fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEven
                 AdminIconButton("Manage Fields", Icons.Default.Settings, onManageFieldsClick)
                 Spacer(modifier = Modifier.width(16.dp))
                 AdminIconButton("Event Data", Icons.Default.Assessment, onClick = onEventLogsClick)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                AdminIconButton("Bag Logs", Icons.Default.Inventory, onClick = onBagLogClick)
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminBagLogScreen(onBackClick: () -> Unit) {
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.primary
+                    )
+                )
+            )
+    ) {
+        Crossfade(targetState = selectedEvent, label = "BagLogCrossfade") { event ->
+            if (event == null) {
+                EventSelectionForBagLogs(
+                    onBackClick = onBackClick,
+                    onEventSelected = { selectedEvent = it }
+                )
+            } else {
+                BagLogDetailScreen(
+                    event = event,
+                    onBack = { selectedEvent = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventSelectionForBagLogs(onBackClick: () -> Unit, onEventSelected: (Event) -> Unit) {
+    val context = LocalContext.current
+    var events by remember { mutableStateOf<List<Event>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        // Admins able to see all events
+        events = AppDatabase.getDatabase(context).eventDao().getAllEvents()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding().navigationBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Select Event to View Bag Logs", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (events.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No events found.", color = Color.White)
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(events) { event ->
+                    Button(
+                        onClick = { onEventSelected(event) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(event.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(event.date))} - ${event.location}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BagLogDetailScreen(event: Event, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var bags by remember { mutableStateOf<List<Bag>>(emptyList()) }
+    val db = remember { AppDatabase.getDatabase(context) }
+
+    LaunchedEffect(event) {
+
+        bags = db.bagDao().getBagsByEvent(event.id)
+    }
+
+    // Calculate totals
+    val totalBags = bags.size
+    val totalWeight = bags.sumOf { it.weight }
+    val totalWeightFormatted = DecimalFormat("#,##0.00").format(totalWeight)
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp).statusBarsPadding().navigationBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Bag Logs for ${event.name}", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (bags.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No bags have been logged for this event yet.", color = Color.White)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(bags.sortedBy { it.bagNumber }) { bag -> // Sort by bag number
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Bag ${bag.bagNumber}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "${DecimalFormat("#,##0.00").format(bag.weight)} kg",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Totals Summary Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Total Bags: $totalBags",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Total Weight: $totalWeightFormatted kg",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

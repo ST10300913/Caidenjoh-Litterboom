@@ -5,4 +5,5 @@ interface BagDao {
     suspend fun getBagsByEvent(eventId: Int): List<Bag>
     suspend fun approveBags(eventId: Int)
     suspend fun areBagsApproved(eventId: Int): Boolean
+    suspend fun getApprovedBagsForEvent(eventId: Int): List<Bag>
 }

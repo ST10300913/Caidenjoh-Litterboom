@@ -118,7 +118,7 @@ fun BagEntryScreen(eventId: Int, eventName: String) {
                     OutlinedTextField(
                         value = bagNumber,
                         onValueChange = { bagNumber = it },
-                        label = { Text("Bag Number (1-65)") },
+                        label = { Text("Bag Number (1-200)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier
                             .weight(1f)
@@ -158,8 +158,8 @@ fun BagEntryScreen(eventId: Int, eventName: String) {
                             val num = bagNumber.toIntOrNull()
                             val wt = weight.toDoubleOrNull()
                             when {
-                                num == null || num !in 1..65 -> {
-                                    errorMessage = "Bag number must be between 1 and 65."
+                                num == null || num !in 1..200 -> {
+                                    errorMessage = "Bag number must be between 1 and 200."
                                 }
                                 wt == null || wt <= 0 -> {
                                     errorMessage = "Weight must be greater than 0."
