@@ -82,6 +82,9 @@ dependencies {
 
     // ✅ Coroutines Tasks (for await())
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    // Google play
+    implementation("com.google.android.libraries.places:places:3.5.0")
 }
 
 

@@ -10,9 +10,10 @@ class FirestoreBagDao : BagDao {
 
     override suspend fun insertBag(bag: Bag) {
         val id = "${bag.eventId}-${bag.bagNumber}"
+        val newBagId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
         col.document(id).set(
             mapOf(
-                "bagId" to bag.bagId,
+                "bagId" to newBagId,
                 "eventId" to bag.eventId,
                 "bagNumber" to bag.bagNumber,
                 "weight" to bag.weight,
