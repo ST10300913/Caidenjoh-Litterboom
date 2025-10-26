@@ -148,9 +148,10 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         try {
             if (!Places.isInitialized()) {
-                val apiKey = "AIzaSyDO58-xeFOVUtdHSEQbuNr0HtwvPvBdUZM"
-                if (apiKey == "AIzaSyDO58-xeFOVUtdHSEQbuNr0HtwvPvBdUZM") {
-                    Toast.makeText(this, "API Key not set for Places SDK.", Toast.LENGTH_LONG).show()
+                // Access the key safely from the generated BuildConfig
+                val apiKey = com.example.litterboom.BuildConfig.MAPS_API_KEY
+                if (apiKey.isEmpty() || apiKey == "YOUR_API_KEY_HERE") {
+                    Toast.makeText(this, "API Key not set in local.properties.", Toast.LENGTH_LONG).show()
                 }
                 Places.initialize(applicationContext, apiKey)
             }
@@ -1047,13 +1048,15 @@ fun AdminIconButton(text: String, icon: androidx.compose.ui.graphics.vector.Imag
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Icon(icon, contentDescription = text, modifier = Modifier.size(48.dp))
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         }
     }
 }

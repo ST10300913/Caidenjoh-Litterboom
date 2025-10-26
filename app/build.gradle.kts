@@ -1,4 +1,6 @@
 // App module build.gradle.kts
+import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
@@ -15,6 +17,19 @@ android {
 
     defaultConfig {
         applicationId = "com.example.litterboom"
+        // Read the key from local.properties
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+        }
+        val apiKey = localProperties.getProperty("MAPS_API_KEY") ?: ""
+
+        // build config field for Google Maps API key
+        buildConfigField("String", "MAPS_API_KEY", "\"$apiKey\"")
+
+        // manifest placeholder to use in AndroidManifest.xml
+        manifestPlaceholders["MAPS_API_KEY"] = apiKey
         minSdk = 23
         targetSdk = 35
         versionCode = 4
@@ -40,7 +55,8 @@ android {
     }
     kotlinOptions { jvmTarget = "11" }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true
+        buildConfig = true}
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
