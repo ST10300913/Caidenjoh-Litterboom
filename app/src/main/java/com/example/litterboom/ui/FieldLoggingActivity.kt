@@ -140,30 +140,40 @@ fun FieldLoggingScreen(subCategoryId: Int, subCategoryName: String, mainCategory
             LazyColumn(modifier = Modifier.weight(1f)) {
 
                 items(requiredFields) { field ->
-                    // Check for numeric fields
-                    val isNumericField = field.fieldName.contains("weight", ignoreCase = true) ||
+                    val isWeightField = field.fieldName.contains("weight", ignoreCase = true) ||
                             field.fieldName.contains("kg", ignoreCase = true)
+                    val isPiecesField = field.fieldName.equals("Pieces", ignoreCase = true)
+                    val isNumericField = isWeightField || isPiecesField
 
-                    val keyboardType = if (isNumericField) {
-                        KeyboardType.Decimal
-                    } else {
-                        KeyboardType.Text
+                    val keyboardType = when {
+                        isWeightField -> KeyboardType.Decimal
+                        isPiecesField -> KeyboardType.Number // Use Number for integers
+                        else          -> KeyboardType.Text
                     }
 
-                    // Regex to allow only numbers and at most one decimal point
                     val decimalRegex = remember { Regex("^\\d*\\.?\\d*\$") }
+                    val integerRegex = remember { Regex("^\\d*\$") } // Regex for integers only
 
                     OutlinedTextField(
                         value = fieldInputValues[field.id] ?: "",
                         onValueChange = { newValue ->
-                            if (isNumericField) {
-                                // For numeric fields, only accept valid decimal input
-                                if (newValue.isEmpty() || newValue.matches(decimalRegex)) {
-                                    fieldInputValues[field.id] = newValue
+                            when {
+                                isWeightField -> {
+                                    // Allow valid decimal input
+                                    if (newValue.isEmpty() || newValue.matches(decimalRegex)) {
+                                        fieldInputValues[field.id] = newValue
+                                    }
                                 }
-                            } else {
-                                // For text fields, apply the auto-formatting
-                                fieldInputValues[field.id] = formatToTitleCase(newValue)
+                                isPiecesField -> {
+                                    // Allow valid integer input
+                                    if (newValue.isEmpty() || newValue.matches(integerRegex)) {
+                                        fieldInputValues[field.id] = newValue
+                                    }
+                                }
+                                else -> {
+                                    // Apply auto-formatting for text fields
+                                    fieldInputValues[field.id] = formatToTitleCase(newValue)
+                                }
                             }
                         },
                         label = { Text(field.fieldName, style = MaterialTheme.typography.labelLarge) },
