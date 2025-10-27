@@ -30,7 +30,7 @@ android {
 
         // manifest placeholder to use in AndroidManifest.xml
         manifestPlaceholders["MAPS_API_KEY"] = apiKey
-        minSdk = 23
+        minSdk = 26
         targetSdk = 35
         versionCode = 4
         versionName = "1.3"
@@ -101,6 +101,9 @@ dependencies {
 
     // Google play
     implementation("com.google.android.libraries.places:places:3.5.0")
+
+    implementation("org.apache.poi:poi:5.3.0")
+    implementation("org.apache.poi:poi-ooxml:5.3.0")
 }
 
 

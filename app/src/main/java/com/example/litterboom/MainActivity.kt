@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.BottomSheetScaffold
@@ -132,15 +133,18 @@ import com.google.android.libraries.places.widget.Autocomplete
 import com.google.android.libraries.places.widget.AutocompleteActivity
 import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import kotlinx.coroutines.launch
+import org.apache.poi.ss.usermodel.FillPatternType
+import org.apache.poi.ss.usermodel.IndexedColors
+import org.apache.poi.xssf.usermodel.XSSFCellStyle
+import org.apache.poi.xssf.usermodel.XSSFFont
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.json.JSONObject
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.material.icons.filled.Share
-import java.io.OutputStreamWriter
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -993,92 +997,251 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
     var loggedItems by remember { mutableStateOf<List<Pair<LoggedWaste, User?>>>(emptyList()) }
     var bagItems by remember { mutableStateOf<List<Bag>>(emptyList()) }
 
-    // Launch a coroutine to fetch logged waste items
+    // ActivityResultLauncher for saving the .XLSX file
     val fileSaverLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv")
+        contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) { uri ->
-        // This is the callback for when the user selects a save location
         uri?.let { saveUri ->
             scope.launch {
                 try {
-                    val csvContent = StringBuilder()
-
-                    csvContent.append("\uFEFF")
-
-                    // Group all logged items by their Main Category
+                    // Pre-calculate all totals
+                    val totalBags = bagItems.size
+                    val totalBagWeight = bagItems.sumOf { it.weight }
                     val groupedByCategory = loggedItems.groupBy { it.first.category }
+                    var overallLoggedWeight = 0.0
+                    var overallTotalPieces = 0.0
+                    val categoryTotals = mutableMapOf<String, Pair<Double, Double>>() // Category -> Pair(Pieces, Weight)
+                    val weightKey = "Weight (kg)"
+                    val piecesKey = "Pieces"
 
-                    //  Iterate over each Main Category group to build a table per main category
+                    // Calculate totals needed for the summary sheet
                     groupedByCategory.forEach { (mainCategory, itemsInCategory) ->
-
-                        // Write the Main Category as a title
-                        csvContent.append("Category:;").append(escapeCsvField(mainCategory)).append("\r\n")
-
-                        // Find all unique dynamic fields for THIS category only
-                        val detailKeysForThisCategory = mutableSetOf<String>()
+                        var categoryTotalWeight = 0.0
+                        var categoryTotalPieces = 0.0
                         itemsInCategory.forEach { (waste, _) ->
                             try {
                                 val detailsJson = JSONObject(waste.details)
-                                detailsJson.keys().forEach { key -> detailKeysForThisCategory.add(key) }
+                                detailsJson.keys().forEach { key ->
+                                    val value = detailsJson.optString(key, "")
+                                    val numericValue = value.toDoubleOrNull()
+                                    if (numericValue != null) {
+                                        when (key) {
+                                            weightKey -> categoryTotalWeight += numericValue
+                                            piecesKey -> categoryTotalPieces += numericValue
+                                        }
+                                    }
+                                }
                             } catch (_: Exception) { /* ignore bad json */ }
                         }
+                        overallLoggedWeight += categoryTotalWeight
+                        overallTotalPieces += categoryTotalPieces
+                        categoryTotals[mainCategory] = Pair(categoryTotalPieces, categoryTotalWeight)
+                    }
+                    val weightVariance = totalBagWeight - overallLoggedWeight
+                    val estimatePerBag = if (totalBags > 0) overallTotalPieces / totalBags else 0.0
+
+                    // Create a blank Excel Workbook
+                    val workbook = XSSFWorkbook()
+
+                    // Create helper styles
+                    val boldFont: XSSFFont = workbook.createFont()
+                    boldFont.bold = true
+
+                    val headerStyle: XSSFCellStyle = workbook.createCellStyle()
+                    headerStyle.fillForegroundColor = IndexedColors.GREY_25_PERCENT.index
+                    headerStyle.fillPattern = FillPatternType.SOLID_FOREGROUND
+                    headerStyle.setFont(boldFont)
+
+                    val boldStyle: XSSFCellStyle = workbook.createCellStyle()
+                    boldStyle.setFont(boldFont)
+
+                    // Create event summary sheet
+                    val summarySheet = workbook.createSheet("Event Summary")
+                    var summaryRowIndex = 0
+
+                    // Event Details
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Event Name:"); setCellStyle(boldStyle) }
+                        createCell(1).setCellValue(event.name)
+                    }
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Event Date:"); setCellStyle(boldStyle) }
+                        createCell(1).setCellValue(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(event.date)))
+                    }
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Event Location:"); setCellStyle(boldStyle) }
+                        createCell(1).setCellValue(event.location)
+                    }
+                    summaryRowIndex++ // Blank row
+
+                    // Category Breakdown Section
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Category Totals:"); setCellStyle(headerStyle) }
+                        createCell(1).apply { setCellValue("Total Pieces"); setCellStyle(headerStyle) }
+                        createCell(2).apply { setCellValue("Total Weight (kg)"); setCellStyle(headerStyle) }
+                    }
+                    categoryTotals.toSortedMap().forEach { (categoryName, totals) -> // Sort categories alphabetically
+                        val (pieces, weight) = totals
+                        summarySheet.createRow(summaryRowIndex++).apply {
+                            createCell(0).setCellValue(categoryName)
+                            createCell(1).setCellValue(pieces)
+                            createCell(2).setCellValue(weight)
+                        }
+                    }
+                    summaryRowIndex++ // Blank row
+
+                    // Overall Calculated Summary
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Overall Summary:"); setCellStyle(headerStyle) }
+                    }
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Original Weight (kg):"); setCellStyle(boldStyle) }
+                        createCell(1).setCellValue(totalBagWeight)
+                    }
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Weight Variance (kg):"); setCellStyle(boldStyle) }
+                        createCell(1).setCellValue(weightVariance)
+                    }
+                    summarySheet.createRow(summaryRowIndex++).apply {
+                        createCell(0).apply { setCellValue("Estimate Pieces Per Bag:"); setCellStyle(boldStyle) }
+                        createCell(1).setCellValue(estimatePerBag)
+                    }
+
+                    // Build the Bag Summary Sheet
+                    val bagSheet = workbook.createSheet("Bag Summary")
+                    var currentBagRowIndex = 0
+
+                    // Create Bag Header Row
+                    var headerRow = bagSheet.createRow(currentBagRowIndex++)
+                    headerRow.createCell(0).apply {
+                        setCellValue("Bag Number")
+                        setCellStyle(headerStyle)
+                    }
+                    headerRow.createCell(1).apply {
+                        setCellValue("Weight (kg)")
+                        setCellStyle(headerStyle)
+                    }
+
+                    // Populate Bag Data
+                    val sortedBags = bagItems.sortedBy { it.bagNumber }
+                    sortedBags.forEach { bag ->
+                        val dataRow = bagSheet.createRow(currentBagRowIndex++)
+                        dataRow.createCell(0).setCellValue(bag.bagNumber.toDouble())
+                        dataRow.createCell(1).setCellValue(bag.weight)
+                    }
+
+                    // Add Bag Totals
+                    currentBagRowIndex += 1 // Blank row
+                    val totalRow1 = bagSheet.createRow(currentBagRowIndex++)
+                    totalRow1.createCell(0).apply {
+                        setCellValue("Total Bags:")
+                        setCellStyle(boldStyle)
+                    }
+                    totalRow1.createCell(1).setCellValue(totalBags.toDouble())
+
+                    val totalRow2 = bagSheet.createRow(currentBagRowIndex)
+                    totalRow2.createCell(0).apply {
+                        setCellValue("Total Weight (kg):")
+                        setCellStyle(boldStyle)
+                    }
+                    totalRow2.createCell(1).setCellValue(totalBagWeight)
+
+
+                    // Build a Sheet for Each Waste Category
+                    groupedByCategory.forEach { (mainCategory, itemsInCategory) ->
+                        val safeSheetName = mainCategory.replace(Regex("[:\\\\/?*\\[\\]]"), " ")
+                        val sheet = workbook.createSheet(safeSheetName)
+                        var currentWasteRowIndex = 0
+
+                        // Find unique dynamic fields
+                        val detailKeysForThisCategory = categoryTotals[mainCategory]?.let { totals ->
+                            // Get keys specific to this category from loggedItems
+                            itemsInCategory.flatMap { (waste, _) ->
+                                try { JSONObject(waste.details).keys().asSequence().toList() }
+                                catch (_: Exception) { emptyList() }
+                            }.toSet()
+                        } ?: emptySet() // Fallback if category somehow wasn't in totals map
                         val sortedDetailKeys = detailKeysForThisCategory.sorted()
 
-                        // Build the Header Row for this table
-                        val headers = listOf("Sub-Category") + sortedDetailKeys
-                        csvContent.append(headers.joinToString(";") { escapeCsvField(it) }).append("\r\n")
 
-                        // Build the Data Rows for this table
+                        // Define standard keys and ensure they come first
+                        val standardKeys = listOfNotNull(
+                            piecesKey.takeIf { detailKeysForThisCategory.contains(it) },
+                            weightKey.takeIf { detailKeysForThisCategory.contains(it) }
+                        )
+                        val otherKeys = sortedDetailKeys.filter { it != weightKey && it != piecesKey }
+                        val headers = listOf("Sub-Category") + standardKeys + otherKeys
+
+                        // Create the Header Row
+                        headerRow = sheet.createRow(currentWasteRowIndex++)
+                        headers.forEachIndexed { index, header ->
+                            headerRow.createCell(index).apply {
+                                setCellValue(header)
+                                setCellStyle(headerStyle)
+                            }
+                        }
+
+                        // Populate Data Rows
                         itemsInCategory.forEach { (waste, _) ->
-                            val row = mutableListOf<String>()
-                            row.add(escapeCsvField(waste.subCategory))
+                            val dataRow = sheet.createRow(currentWasteRowIndex++)
+                            dataRow.createCell(0).setCellValue(waste.subCategory)
 
                             val detailsJson = try { JSONObject(waste.details) } catch (e: Exception) { JSONObject() }
-                            sortedDetailKeys.forEach { key ->
-                                row.add(escapeCsvField(detailsJson.optString(key, "")))
+
+                            headers.drop(1).forEachIndexed { headerIndex, key ->
+                                val value = detailsJson.optString(key, "")
+                                val numericValue = value.toDoubleOrNull()
+                                val cell = dataRow.createCell(headerIndex + 1)
+
+                                if (numericValue != null) {
+                                    cell.setCellValue(numericValue)
+                                } else {
+                                    cell.setCellValue(value)
+                                }
                             }
-                            csvContent.append(row.joinToString(";")).append("\r\n")
                         }
 
-                        // Add spacing between tables
-                        csvContent.append("\r\n\r\n")
-                    }
+                        // Add Category Total Rows using pre-calculated
+                        val (categoryTotalPieces, categoryTotalWeight) = categoryTotals[mainCategory] ?: Pair(0.0, 0.0)
+                        currentWasteRowIndex += 1 // Blank row
 
-                    csvContent.append("Bag Log Summary\r\n") // Title for the bag table
-                    csvContent.append("Bag Number;Weight (Kg)\r\n") // Headers
+                        val weightColIndex = headers.indexOf(weightKey)
+                        val piecesColIndex = headers.indexOf(piecesKey)
+                        val firstTotalCol = listOf(piecesColIndex, weightColIndex).filter { it != -1 }.minOrNull() ?: 0
+                        val labelColIndex = if (firstTotalCol > 0) firstTotalCol - 1 else 0
 
-                    // Sort bags by number
-                    val sortedBags = bagItems.sortedBy { it.bagNumber }
+                        if (piecesColIndex != -1) {
+                            val totalPiecesRow = sheet.createRow(currentWasteRowIndex++)
+                            totalPiecesRow.createCell(labelColIndex).apply {
+                                setCellValue("Total Pieces:")
+                                setCellStyle(boldStyle)
+                            }
+                            totalPiecesRow.createCell(piecesColIndex).apply {
+                                setCellValue(categoryTotalPieces)
+                                setCellStyle(boldStyle)
+                            }
+                        }
 
-                    // Loop and add each bag as a row
-                    sortedBags.forEach { bag ->
-                        val bagRow = listOf(
-                            bag.bagNumber.toString(),
-                            // Format the weight to 2 decimal places
-                            DecimalFormat("#,##0.00").format(bag.weight)
-                        )
-                        csvContent.append(bagRow.joinToString(";") { escapeCsvField(it) }).append("\r\n")
-                    }
-
-                    // Add a blank line for spacing
-                    csvContent.append("\r\n")
-
-                    // Now add the totals at the end of the bag list
-                    val totalBags = bagItems.size
-                    val totalWeight = bagItems.sumOf { it.weight }
-                    val totalWeightFormatted = DecimalFormat("#,##0.00").format(totalWeight)
-
-                    csvContent.append("Event Summary\r\n")
-                    csvContent.append("Total Bags;${totalBags}\r\n")
-                    csvContent.append("Total Weight (Kg);${totalWeightFormatted}\r\n")
+                        if (weightColIndex != -1) {
+                            val totalWeightRow = sheet.createRow(currentWasteRowIndex)
+                            totalWeightRow.createCell(labelColIndex).apply {
+                                setCellValue("Total Weight (kg):")
+                                setCellStyle(boldStyle)
+                            }
+                            totalWeightRow.createCell(weightColIndex).apply {
+                                setCellValue(categoryTotalWeight)
+                                setCellStyle(boldStyle)
+                            }
+                        }
+                    } // End loop for categories
 
 
-                    // Write the file
+                    //  Write the file
                     context.contentResolver.openOutputStream(saveUri)?.use { outputStream ->
-                        OutputStreamWriter(outputStream).use { writer ->
-                            writer.write(csvContent.toString())
-                        }
+                        workbook.write(outputStream)
                     }
+                    workbook.close()
+
                     Toast.makeText(context, "Export successful!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -1088,7 +1251,6 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
         }
     }
 
-    // This data-fetching logic is unchanged
     LaunchedEffect(event) {
         val wasteItems = db.loggedWasteDao().getWasteForEvent(event.id)
         val userWastePairs = wasteItems.map { waste ->
@@ -1108,7 +1270,7 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
 
             IconButton(onClick = {
                 val simpleDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(event.date))
-                val fileName = "${event.name.replace(" ", "_")}_${simpleDate}_export.csv"
+                val fileName = "${event.name.replace(" ", "_")}_${simpleDate}_export.xlsx"
                 fileSaverLauncher.launch(fileName)
             }) {
                 Icon(Icons.Default.Share, "Export Data", tint = Color.White)
@@ -1356,6 +1518,10 @@ fun ManageCategoriesScreen(onBackClick: () -> Unit) {
             if (weightField == null) {
                 db.wasteDao().insertLoggingField(LoggingField(fieldName = "Weight (kg)", isActive = true))
             }
+            val piecesField = db.wasteDao().getFieldByName("Pieces")
+            if (piecesField == null) {
+                db.wasteDao().insertLoggingField(LoggingField(fieldName = "Pieces", isActive = true))
+            }
         }
     }
 
@@ -1485,13 +1651,20 @@ fun CategoryItem(
                             val trimmedName = newSubCategoryName.trim()
                             if (trimmedName.isNotBlank()) {
                                 if (db.wasteDao().getSubCategoryByName(trimmedName, category.id) == null) {
-                                    val newSubId = db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id))
+                                    val newSubId = db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id)).toInt()
 
                                     val weightField = db.wasteDao().getFieldByName("Weight (kg)")
+                                    val piecesField = db.wasteDao().getFieldByName("Pieces")
 
                                     if (weightField != null) {
                                         db.wasteDao().assignFieldToSubCategory(
                                             SubCategoryField(subCategoryId = newSubId.toInt(), fieldId = weightField.id)
+                                        )
+                                    }
+
+                                    if (piecesField != null) {
+                                        db.wasteDao().assignFieldToSubCategory(
+                                            SubCategoryField(subCategoryId = newSubId, fieldId = piecesField.id)
                                         )
                                     }
 
@@ -2547,15 +2720,6 @@ fun ExpandedStateContent() { //background content when login is expanded
     }
 }
 
-private fun escapeCsvField(field: String): String {
-    // Check for the delimiter (semicolon) or quotes
-    return if (field.contains(";") || field.contains("\"")) {
-        // Wrap in quotes and double-up existing quotes
-        "\"${field.replace("\"", "\"\"")}\""
-    } else {
-        field // No escaping needed
-    }
-}
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
