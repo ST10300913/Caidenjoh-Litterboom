@@ -233,7 +233,8 @@ fun AppWithNavDrawer() {
     ) {
         Crossfade(targetState = currentScreen, label = "ScreenCrossfade") { screen ->
             when (screen) {
-                "Source to Sea" -> LoginScreenWithSwipeableSheet(loggedIn, { loggedIn = it }, { scope.launch { drawerState.open() } })
+                "Source to Sea" -> LoginScreenWithSwipeableSheet(loggedIn, { loggedIn = it }, { scope.launch { drawerState.open() } },
+                    { currentScreen = it })
                 "Interception" -> InterceptionScreen(onBackClick = { currentScreen = "Source to Sea" })
                 "Education" -> EducationScreen(onBackClick = { currentScreen = "Source to Sea" })
                 "Innovation" -> InnovationScreen(onBackClick = { currentScreen = "Source to Sea" })
@@ -2026,7 +2027,7 @@ fun AdminControlPanelScreen(onMenuClick: () -> Unit, onItemClick: (String) -> Un
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) -> Unit, onMenuClick: () -> Unit) { //swipeable sheet for login page
+fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) -> Unit, onMenuClick: () -> Unit,navigateTo: (String) -> Unit) { //swipeable sheet for login page
     val sheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
         skipHiddenState = true
@@ -2049,7 +2050,8 @@ fun LoginScreenWithSwipeableSheet(loggedIn: Boolean, onLoginChange: (Boolean) ->
                 loggedIn = loggedIn,
                 onLoginClick = {
                     scope.launch { sheetState.expand() }},
-                onLoginSuccess = { onLoginChange(true) }
+                onLoginSuccess = { onLoginChange(true) },
+                navigateTo = navigateTo
 
             )
         },
@@ -2133,7 +2135,7 @@ fun AppDrawerContent(
 }
 
 @Composable
-fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -> Unit, onLoginSuccess: () -> Unit) { //login sheet content
+fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -> Unit, onLoginSuccess: () -> Unit,navigateTo: (String) -> Unit) { //login sheet content
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -2243,8 +2245,13 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                     }
                                     CurrentUserManager.login(user)
                                     onLoginSuccess()
-                                    val intent = Intent(context, EventSelectionActivity::class.java)
-                                    context.startActivity(intent)
+                                    if (user.role == "Admin") {
+                                        navigateTo("Admin Panel")
+                                    } else {
+                                        val intent =
+                                            Intent(context, EventSelectionActivity::class.java)
+                                        context.startActivity(intent)
+                                    }
                                 } else {
                                     loginMessage = "Invalid username or password."
 
