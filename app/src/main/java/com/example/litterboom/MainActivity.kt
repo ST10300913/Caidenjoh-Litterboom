@@ -136,6 +136,8 @@ import kotlinx.coroutines.launch
 import org.apache.poi.ss.usermodel.FillPatternType
 import org.apache.poi.ss.usermodel.IndexedColors
 import org.apache.poi.xssf.usermodel.XSSFCellStyle
+import com.example.litterboom.data.api.ApiClient
+import com.google.firebase.auth.FirebaseAuth
 import org.apache.poi.xssf.usermodel.XSSFFont
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.json.JSONObject
@@ -144,6 +146,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+// Add to imports
+import kotlinx.coroutines.tasks.await
+import android.util.Log
+import androidx.compose.foundation.clickable
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -155,16 +161,18 @@ class MainActivity : ComponentActivity() {
             if (!Places.isInitialized()) {
                 // Access the key safely from the generated BuildConfig
                 val apiKey = BuildConfig.MAPS_API_KEY
-                if (apiKey.isEmpty() || apiKey == "YOUR_API_KEY_HERE") {
-                    Toast.makeText(this, "API Key not set in local.properties.", Toast.LENGTH_LONG).show()
+                if (!apiKey.isEmpty() && apiKey != "YOUR_API_KEY_HERE") {
+                    Places.initialize(applicationContext, apiKey)
+                } else {
+                    // Places API key not set, skip initialization
                 }
-                Places.initialize(applicationContext, apiKey)
             }
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Error initializing Places SDK: ${e.message}", Toast.LENGTH_LONG).show()
         }
         AppDatabase.getDatabase(this)
+        ApiClient.init(this)
 
         setContent {
             LitterboomTheme {
@@ -990,6 +998,7 @@ private fun EventSelectionForLogs(onBackClick: () -> Unit, onEventSelected: (Eve
     }
 }
 
+@Suppress("ExperimentalMaterial3Api")
 @Composable
 private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
     val context = LocalContext.current
@@ -1286,7 +1295,26 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
         } else {
             LazyColumn {
                 items(loggedItems) { (waste, user) ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                            scope.launch {
+                                val allCategories = db.wasteDao().getAllCategories()
+                                val category = allCategories.find { it.name == waste.category }
+                                val categoryId = category?.id ?: return@launch
+                                val subCategories = db.wasteDao().getSubCategoriesForCategory(categoryId)
+                                val subCategory = subCategories.find { it.name == waste.subCategory }
+                                val subCategoryId = subCategory?.id ?: return@launch
+                                val intent = Intent(context, com.example.litterboom.ui.FieldLoggingActivity::class.java).apply {
+                                    putExtra("SUB_CATEGORY_ID", subCategoryId)
+                                    putExtra("SUB_CATEGORY_NAME", waste.subCategory)
+                                    putExtra("MAIN_CATEGORY_NAME", waste.category)
+                                    putExtra("LOGGED_WASTE_ID", waste.id)
+                                }
+                                context.startActivity(intent)
+                            }
+                        },
+                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.2f))
+                    ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text("${waste.category} > ${waste.subCategory}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                             Text("Logged by: ${user?.username ?: "Unknown"}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
@@ -1430,26 +1458,32 @@ fun AddUserScreen(onBackClick: () -> Unit) {
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = {
-                    scope.launch {
-                        if (username.isNotBlank() && password.isNotBlank()) {
-                            AppDatabase.getDatabase(context).userDao().insertUser(
-                                User(
-                                    username = username,
-                                    password = password,
-                                    role = selectedRole
-                                )
-                            )
-                            username = ""
-                            password = ""
-                            successMessage = "User added successfully!"
-                            refreshUsers()
-                        } else {
-                            successMessage = "Please fill all fields."
+                Button(
+                    onClick = {
+                        scope.launch {
+                            if (username.isNotBlank() && password.isNotBlank()) {
+                                try {
+                                    AppDatabase.getDatabase(context).userDao().insertUser(
+                                        User(
+                                            username = username,
+                                            password = password,
+                                            role = selectedRole
+                                        )
+                                    )
+                                    username = ""
+                                    password = ""
+                                    successMessage = "User added successfully!"
+                                    refreshUsers()
+                                } catch (e: retrofit2.HttpException) {
+                                    successMessage = if (e.code() == 400) "Failed to add user: A user with this email already exists." else "Failed to add user: ${e.message()}"
+                                } catch (e: Exception) {
+                                    successMessage = "Failed to add user: ${e.message}"
+                                }
+                            } else {
+                                successMessage = "Please fill all fields."
+                            }
                         }
-                    }
-                },
+                    },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
@@ -1513,19 +1547,6 @@ fun ManageCategoriesScreen(onBackClick: () -> Unit) {
 
     LaunchedEffect(Unit) { refreshAll() }
 
-    LaunchedEffect(Unit) {
-        scope.launch {
-            val weightField = db.wasteDao().getFieldByName("Weight (kg)")
-            if (weightField == null) {
-                db.wasteDao().insertLoggingField(LoggingField(fieldName = "Weight (kg)", isActive = true))
-            }
-            val piecesField = db.wasteDao().getFieldByName("Pieces")
-            if (piecesField == null) {
-                db.wasteDao().insertLoggingField(LoggingField(fieldName = "Pieces", isActive = true))
-            }
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(brush = Brush.verticalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)))) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp).statusBarsPadding().navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1548,8 +1569,10 @@ fun ManageCategoriesScreen(onBackClick: () -> Unit) {
                 Button(onClick = {
                     scope.launch {
                         val trimmedName = newCategoryName.trim()
+                        val trimmedLower = trimmedName.lowercase()
                         if (trimmedName.isNotBlank()) {
-                            if (db.wasteDao().getCategoryByName(trimmedName) == null) {
+                            val existingCategories = db.wasteDao().getAllCategories()
+                            if (existingCategories.none { it.name.lowercase() == trimmedLower }) {
                                 db.wasteDao().insertCategory(WasteCategory(name = trimmedName.capitalizeWords()))
                                 newCategoryName = ""
                                 refreshAll()
@@ -1650,25 +1673,11 @@ fun CategoryItem(
                     Button(onClick = {
                         scope.launch {
                             val trimmedName = newSubCategoryName.trim()
+                            val trimmedLower = trimmedName.lowercase()
                             if (trimmedName.isNotBlank()) {
-                                if (db.wasteDao().getSubCategoryByName(trimmedName, category.id) == null) {
-                                    val newSubId = db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id)).toInt()
-
-                                    val weightField = db.wasteDao().getFieldByName("Weight (kg)")
-                                    val piecesField = db.wasteDao().getFieldByName("Pieces")
-
-                                    if (weightField != null) {
-                                        db.wasteDao().assignFieldToSubCategory(
-                                            SubCategoryField(subCategoryId = newSubId.toInt(), fieldId = weightField.id)
-                                        )
-                                    }
-
-                                    if (piecesField != null) {
-                                        db.wasteDao().assignFieldToSubCategory(
-                                            SubCategoryField(subCategoryId = newSubId, fieldId = piecesField.id)
-                                        )
-                                    }
-
+                                val existingSubs = db.wasteDao().getSubCategoriesForCategory(category.id)
+                                if (existingSubs.none { it.name.lowercase() == trimmedLower }) {
+                                    db.wasteDao().insertSubCategory(WasteSubCategory(name = trimmedName.capitalizeWords(), categoryId = category.id))
                                     newSubCategoryName = ""
                                     refreshSubCategories()
                                     Toast.makeText(context, "Sub-Category Added", Toast.LENGTH_SHORT).show()
@@ -1826,8 +1835,10 @@ fun ManageFieldsScreen(onBackClick: () -> Unit) {
                 Button(onClick = {
                     scope.launch {
                         val trimmedName = newFieldName.trim()
+                        val trimmedLower = trimmedName.lowercase()
                         if (trimmedName.isNotBlank()) {
-                            if (db.wasteDao().getFieldByName(trimmedName) == null) {
+                            val existingFields = db.wasteDao().getAllLoggingFields()
+                            if (existingFields.none { it.fieldName.lowercase() == trimmedLower }) {
                                 db.wasteDao().insertLoggingField(LoggingField(fieldName = trimmedName.capitalizeWords()))
                                 newFieldName = ""
                                 refreshFields()
@@ -2236,25 +2247,30 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                     onClick = {
                         scope.launch {
                             if (username.isNotBlank() && password.isNotBlank()) {
-                                val db = AppDatabase.getDatabase(context)
-                                val user = db.userDao().getUser(username, password)
-                                if (user != null) {
-                                    loginMessage = "Login successful as ${user.role}!"
+                                try {
+                                    val response = ApiClient.apiService.login(User(username = username, password = password, role = "", id = 0))
+                                    val auth = FirebaseAuth.getInstance()
+                                    val result = auth.signInWithCustomToken(response.token).await()
+                                    val token = result.user?.getIdToken(false)?.await()?.token
+                                    if (token != null) {
+                                        SessionManager.saveToken(context, token)
+                                    }
+                                    val user = User(id = 0, username = username, password = password, role = response.role)
+                                    loginMessage = "Login successful as ${response.role}!"
                                     if (rememberMe) {
                                         SessionManager.saveUserSession(context, user)
                                     }
                                     CurrentUserManager.login(user)
                                     onLoginSuccess()
-                                    if (user.role == "Admin") {
+                                    if (response.role == "Admin") {
                                         navigateTo("Admin Panel")
                                     } else {
-                                        val intent =
-                                            Intent(context, EventSelectionActivity::class.java)
+                                        val intent = Intent(context, EventSelectionActivity::class.java)
                                         context.startActivity(intent)
                                     }
-                                } else {
-                                    loginMessage = "Invalid username or password."
-
+                                } catch (e: Exception) {
+                                    loginMessage = "Error: ${e.message}"
+                                    Log.e("Login", "Exception", e)
                                 }
                             } else {
                                 loginMessage = "Enter username and password."

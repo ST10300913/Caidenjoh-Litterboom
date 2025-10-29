@@ -187,13 +187,15 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventI
                     val userId = CurrentUserManager.currentUser?.id ?: -1
                     val detailsJson = JSONObject(detailsMap as Map<*, *>).toString()
 
-                    if (editedId != -1) {
+                if (editedId != -1) {
+                        val existing = AppDatabase.getDatabase(context).loggedWasteDao().getLoggedWasteById(editedId)
+                        val userIdForUpdate = existing?.userId ?: userId  // Preserve original userId, fallback to current
                         val updatedEntry = LoggedEntry(editedId, category, description, detailsMap)
                         val index = currentSessionEntries.indexOfFirst { it.id == editedId }
                         if (index != -1) {
                             currentSessionEntries[index] = updatedEntry
                         }
-                        val loggedWaste = LoggedWaste(editedId, eventId, userId, category, description, detailsJson)
+                        val loggedWaste = LoggedWaste(editedId, eventId, userIdForUpdate, category, description, detailsJson)
                         AppDatabase.getDatabase(context).loggedWasteDao().updateLoggedWaste(loggedWaste)
                         Toast.makeText(context, "Entry updated!", Toast.LENGTH_SHORT).show()
                     } else {
@@ -319,12 +321,27 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventI
                             }
                             Row {
                                 IconButton(onClick = {
-                                    // Launch FieldLoggingActivity in edit mode
-                                    val intent =
-                                        Intent(context, MainLoggingMenuActivity::class.java).apply {
-                                            putExtra("EDIT_ENTRY_ID", entry.id)
+                                    // Launch FieldLoggingActivity in edit mode directly
+                                    scope.launch {
+                                        val loggedWaste = AppDatabase.getDatabase(context).loggedWasteDao().getLoggedWasteById(entry.id)
+                                        if (loggedWaste != null) {
+                                            val categories = AppDatabase.getDatabase(context).wasteDao().getAllCategories()
+                                            val category = categories.find { it.name == loggedWaste.category }
+                                            if (category != null) {
+                                                val subCategories = AppDatabase.getDatabase(context).wasteDao().getActiveSubCategoriesForCategory(category.id)
+                                                val subCategory = subCategories.find { it.name == loggedWaste.subCategory }
+                                                if (subCategory != null) {
+                                                    val intent = Intent(context, com.example.litterboom.ui.FieldLoggingActivity::class.java).apply {
+                                                        putExtra("SUB_CATEGORY_ID", subCategory.id)
+                                                        putExtra("SUB_CATEGORY_NAME", subCategory.name)
+                                                        putExtra("MAIN_CATEGORY_NAME", loggedWaste.category)
+                                                        putExtra("LOGGED_WASTE_ID", loggedWaste.id)
+                                                    }
+                                                    loggingActivityLauncher.launch(intent)
+                                                }
+                                            }
                                         }
-                                    loggingActivityLauncher.launch(intent)
+                                    }
                                 }) {
                                     Icon(Icons.Default.Edit, "Edit")
                                 }

@@ -1,23 +1,19 @@
 package com.example.litterboom.data
 
 import android.content.Context
-import com.example.litterboom.data.firebase.FirestoreBagDao
-import com.example.litterboom.data.firebase.FirestoreEventDao
-import com.example.litterboom.data.firebase.FirestoreLoggedWasteDao
-import com.example.litterboom.data.firebase.FirestoreWasteDao
-import com.example.litterboom.data.firebase.FirestoreUserDao
+import com.example.litterboom.data.api.*
 
 /**
  * Room replacement shim.
- * Provides Firestore-backed DAO implementations with the SAME method signatures.
+ * Provides API-backed DAO implementations with the SAME method signatures.
  */
 class AppDatabase private constructor() {
 
-    fun userDao(): UserDao = FirestoreUserDao()
-    fun eventDao(): EventDao = FirestoreEventDao()
-    fun wasteDao(): WasteDao = FirestoreWasteDao()
-    fun bagDao(): BagDao = FirestoreBagDao()
-    fun loggedWasteDao(): LoggedWasteDao = FirestoreLoggedWasteDao()
+    fun userDao(): UserDao = ApiUserDao()
+    fun eventDao(): EventDao = ApiEventDao()
+    fun wasteDao(): WasteDao = ApiWasteDao()
+    fun bagDao(): BagDao = ApiBagDao()
+    fun loggedWasteDao(): LoggedWasteDao = ApiLoggedWasteDao()
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

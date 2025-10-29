@@ -90,14 +90,17 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
 
 
-    // ✅ Firebase (BOM keeps versions consistent)
+    // ✅ Firebase Auth (for custom token login)
     implementation(platform("com.google.firebase:firebase-bom:33.4.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("com.google.firebase:firebase-storage-ktx")
 
-    // ✅ Coroutines Tasks (for await())
+    // ✅ Coroutines Tasks (for Firebase await())
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    // Retrofit, OkHttp, Gson for API calls
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Google play
     implementation("com.google.android.libraries.places:places:3.5.0")
@@ -105,5 +108,3 @@ dependencies {
     implementation("org.apache.poi:poi:5.3.0")
     implementation("org.apache.poi:poi-ooxml:5.3.0")
 }
-
-

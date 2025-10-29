@@ -96,9 +96,9 @@ fun FieldLoggingScreen(subCategoryId: Int, subCategoryName: String, mainCategory
             val db = AppDatabase.getDatabase(context)
             requiredFields = db.wasteDao().getFieldsForSubCategory(subCategoryId)
 
-            if (isEditMode) {
+            if (isEditMode && loggedWasteId != -1) {
                 // If we are editing, load the existing data
-                val existingItem = db.loggedWasteDao().getWasteForEvent(0).find { it.id == loggedWasteId }
+                val existingItem = db.loggedWasteDao().getLoggedWasteById(loggedWasteId)
                 if (existingItem != null) {
                     val detailsJson = JSONObject(existingItem.details)
                     requiredFields.forEach { field ->
