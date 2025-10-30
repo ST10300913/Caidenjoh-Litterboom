@@ -149,7 +149,9 @@ import java.util.Locale
 // Add to imports
 import kotlinx.coroutines.tasks.await
 import android.util.Log
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -172,7 +174,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Error initializing Places SDK: ${e.message}", Toast.LENGTH_LONG).show()
         }
         AppDatabase.getDatabase(this)
-        ApiClient.init(this)
+
 
         setContent {
             LitterboomTheme {
@@ -1296,7 +1298,11 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
             LazyColumn {
                 items(loggedItems) { (waste, user) ->
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(
+                            indication = LocalIndication.current,
+                            interactionSource = remember { MutableInteractionSource() }
+                        )
+                        {
                             scope.launch {
                                 val allCategories = db.wasteDao().getAllCategories()
                                 val category = allCategories.find { it.name == waste.category }
@@ -2251,11 +2257,20 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                     val response = ApiClient.apiService.login(User(username = username, password = password, role = "", id = 0))
                                     val auth = FirebaseAuth.getInstance()
                                     val result = auth.signInWithCustomToken(response.token).await()
-                                    val token = result.user?.getIdToken(false)?.await()?.token
+                                    val token = result.user?.getIdToken(true)?.await()?.token
                                     if (token != null) {
                                         SessionManager.saveToken(context, token)
+                                        Log.d("LOGIN", "ID Token saved: ${token.take(100)}...")
+                                    } else {
+                                        Log.e("LOGIN", "Failed to get ID token! User: ${result.user?.uid}")
                                     }
-                                    val user = User(id = 0, username = username, password = password, role = response.role)
+                                    val user = User(
+                                        id = response.userId,
+                                        username = username,
+                                        password = "",
+                                        role = response.role
+                                    )
+
                                     loginMessage = "Login successful as ${response.role}!"
                                     if (rememberMe) {
                                         SessionManager.saveUserSession(context, user)
