@@ -281,13 +281,6 @@ fun WasteWorkerContent(contentPadding: PaddingValues,  eventName: String, eventI
                     style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text(
-                    "Details",
-                    modifier = Modifier.weight(1.5f),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.End
-                )
             }
 
             // Empty State
