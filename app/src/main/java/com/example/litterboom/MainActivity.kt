@@ -146,12 +146,28 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-// Add to imports
 import kotlinx.coroutines.tasks.await
 import android.util.Log
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.WbIncandescent
+import androidx.compose.material3.Divider
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.Card
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -741,33 +757,39 @@ fun AdminPanelScreen(onMenuClick: () -> Unit, navigateTo: (String) -> Unit) {
 
 @Composable
 fun AdminMenu(onAddUserClick: () -> Unit, onCreateEventClick: () -> Unit, onEventListClick: () -> Unit, onManageCategoriesClick: () -> Unit, onManageFieldsClick: () -> Unit, onEventLogsClick: () -> Unit, onBagLogClick: () -> Unit) {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                AdminIconButton("Add User", Icons.Default.PersonAdd, onAddUserClick)
-                AdminIconButton("Create Event", Icons.Default.Event, onCreateEventClick)
+
+    // list of all menu items.
+    val menuItems = listOf(
+        "Create Event" to Icons.Default.Event,
+        "Event List" to Icons.AutoMirrored.Filled.ViewList,
+        "Waste Data" to Icons.Default.Assessment,
+        "Bag Logs" to Icons.Default.Inventory,
+        "Manage Categories" to Icons.Default.Category,
+        "Manage Fields" to Icons.Default.Settings,
+        "Add User" to Icons.Default.PersonAdd
+    )
+
+    // LazyVerticalGrid for flexibility
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        items(menuItems) { (title, icon) ->
+            // Determine which click handler to pass
+            val onClick = when (title) {
+                "Add User" -> onAddUserClick
+                "Create Event" -> onCreateEventClick
+                "Event List" -> onEventListClick
+                "Manage Categories" -> onManageCategoriesClick
+                "Manage Fields" -> onManageFieldsClick
+                "Waste Data" -> onEventLogsClick
+                "Bag Logs" -> onBagLogClick
+                else -> { -> }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                AdminIconButton("Event List", Icons.AutoMirrored.Filled.ViewList, onEventListClick)
-                AdminIconButton("Manage Categories", Icons.Default.Category, onManageCategoriesClick)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ){
-                AdminIconButton("Manage Fields", Icons.Default.Settings, onManageFieldsClick)
-                Spacer(modifier = Modifier.width(16.dp))
-                AdminIconButton("Event Data", Icons.Default.Assessment, onClick = onEventLogsClick)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                AdminIconButton("Bag Logs", Icons.Default.Inventory, onClick = onBagLogClick)
-            }
+            AdminIconButton(title, icon, onClick)
         }
     }
 }
@@ -1346,12 +1368,21 @@ private fun LoggedWasteDetailScreen(event: Event, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminIconButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) { //Icons and cards for admin functionality buttons
+fun AdminIconButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier.size(150.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        // Make the button a square that fills its cell
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f),
+        // Slightly softer corners
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, hoveredElevation = 8.dp),
+        // A translucent frosted container and white text
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.2f),
+            contentColor = Color.White
+        )
     ) {
         Column(
             modifier = Modifier
@@ -1360,9 +1391,18 @@ fun AdminIconButton(text: String, icon: androidx.compose.ui.graphics.vector.Imag
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = text, modifier = Modifier.size(48.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Icon(
+                icon,
+                contentDescription = text,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -2121,32 +2161,112 @@ fun AppDrawerContent(
     isAdmin: Boolean,
     onItemClick: (String) -> Unit
 ) {
+    val actionItems = setOf("Admin Panel", "Event Selection", "Logout")
+
+    val iconMap = mapOf(
+        "Source to Sea" to Icons.Default.Home,
+        "Interception" to Icons.Default.Waves,
+        "Education" to Icons.Default.School,
+        "Innovation" to Icons.Default.WbIncandescent,
+        "Our Story" to Icons.Default.Info,
+        "The Team" to Icons.Default.People,
+        "Contact" to Icons.Default.Email,
+        "Admin Panel" to Icons.Default.AdminPanelSettings,
+        "Event Selection" to Icons.Default.ListAlt,
+        "Logout" to Icons.AutoMirrored.Filled.ExitToApp
+    )
+
     ModalDrawerSheet(
         modifier = Modifier.width(280.dp),
         drawerContainerColor = MaterialTheme.colorScheme.primary
     ) {
-        Spacer(Modifier.height(16.dp))
+        // header for the drawer
+        Text(
+            text = "Litterboom",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp)
+        )
         if (CurrentUserManager.currentUser != null) {
             Text(
                 text = "Logged in as ${CurrentUserManager.currentUser?.role}",
-                color = Color.White,
-                modifier = Modifier.padding(16.dp)
+                color = Color.White.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 28.dp)
             )
         }
+        Spacer(Modifier.height(16.dp))
+
         navItems.forEach { item ->
             val isSelected = item == currentScreen
-            NavigationDrawerItem(
-                label = { Text(item, style = MaterialTheme.typography.bodyLarge) },
-                selected = isSelected,
-                onClick = { onItemClick(item) },
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                colors = NavigationDrawerItemDefaults.colors(
-                    selectedTextColor = Color.White,
-                    selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
-                    unselectedTextColor = Color.White,
-                    unselectedContainerColor = Color.Transparent
+
+            // Check if the item is an action item
+            if (item in actionItems) {
+                // styling for action buttons
+                NavigationDrawerItem(
+                    label = {
+                        Text(
+                            item,
+                            style = MaterialTheme.typography.bodyLarge,
+                            // Make text bold to stand out
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    selected = isSelected,
+                    onClick = { onItemClick(item) },
+                    // Provide an icon
+                    icon = {
+                        Icon(
+                            imageVector = iconMap[item]!!,
+                            contentDescription = item,
+                            // Dim the icon colour slightly
+                            tint = Color.White.copy(alpha = 0.9f)
+                        )
+                    },
+                    modifier = Modifier
+                        .padding(NavigationDrawerItemDefaults.ItemPadding)
+                        // Add padding to make it look like a distinct button
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        // Use a brighter colour for the button itself
+                        selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                        unselectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
+                        selectedTextColor = Color.White,
+                        unselectedTextColor = Color.White,
+                        selectedIconColor = Color.White,
+                        unselectedIconColor = Color.White.copy(alpha = 0.9f)
+                    ),
+                    // Add rounded corners
+                    shape = RoundedCornerShape(12.dp)
                 )
-            )
+
+                // Add a divider after Event Selection
+                if (item == "Event Selection") {
+                    Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                }
+            } else {
+                NavigationDrawerItem(
+                    label = { Text(item, style = MaterialTheme.typography.bodyLarge) },
+                    selected = isSelected,
+                    onClick = { onItemClick(item) },
+                    icon = {
+                        iconMap[item]?.let {
+                            Icon(imageVector = it, contentDescription = item)
+                        }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedTextColor = Color.White,
+                        selectedIconColor = Color.White,
+                        // Make selected item darker to contrast with action buttons
+                        selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
+                        unselectedTextColor = Color.White.copy(alpha = 0.9f),
+                        unselectedIconColor = Color.White.copy(alpha = 0.9f),
+                        unselectedContainerColor = Color.Transparent
+                    )
+                )
+            }
         }
     }
 }
