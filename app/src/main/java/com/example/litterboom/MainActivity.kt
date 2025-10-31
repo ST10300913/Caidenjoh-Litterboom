@@ -2284,8 +2284,29 @@ fun LoginSheetContent(isExpanded: Boolean, loggedIn: Boolean, onLoginClick: () -
                                         context.startActivity(intent)
                                     }
                                 } catch (e: Exception) {
-                                    loginMessage = "Error: ${e.message}"
-                                    Log.e("Login", "Exception", e)
+                                    val errorMessage = when (e) {
+                                        is retrofit2.HttpException -> {
+                                            try {
+                                                val errorBody = e.response()?.errorBody()?.string()
+                                                val json = JSONObject(errorBody ?: "{}")
+                                                json.optString("message", "Login failed")
+                                            } catch (ex: Exception) {
+                                                "Login failed"
+                                            }
+                                        }
+                                        else -> "No internet connection"
+                                    }
+
+                                    loginMessage = when {
+                                        errorMessage.contains("Incorrect username", ignoreCase = true) ->
+                                            "Incorrect username or password"
+                                        errorMessage.contains("internet", ignoreCase = true) ->
+                                            "No internet connection"
+                                        else ->
+                                            errorMessage
+                                    }
+
+                                    Log.e("Login", "Login failed", e)
                                 }
                             } else {
                                 loginMessage = "Enter username and password."
